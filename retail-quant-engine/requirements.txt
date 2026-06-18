@@ -1,0 +1,12 @@
+# Motore agentico
+langgraph>=0.2
+langchain-openai>=0.2
+langchain-core>=0.3
+
+# Dati retail
+yfinance>=0.2.40
+requests>=2.31
+
+# Utility
+pydantic>=2.6
+python-dotenv>=1.0
