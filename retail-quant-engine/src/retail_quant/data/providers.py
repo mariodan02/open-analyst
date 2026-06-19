@@ -19,8 +19,10 @@ from .schemas import (
     PriceSnapshot,
 )
 
-FMP_BASE = "https://financialmodelingprep.com/api/v3"
-_HTTP_TIMEOUT = 20
+# API "stable" di FMP (la v3 è legacy e bloccata per le chiavi emesse dopo
+# il 31/8/2025). Gli endpoint stable usano ?symbol=TICKER come query param.
+FMP_BASE = "https://financialmodelingprep.com/stable"
+_HTTP_TIMEOUT = 30
 
 
 # --------------------------------------------------------------------------- #
@@ -82,16 +84,16 @@ def get_financials(ticker: str, settings: Settings, years: int = 5) -> Financial
 
 
 def _financials_fmp(ticker: str, settings: Settings, years: int) -> FinancialHistory:
-    inc = _fmp_get(f"income-statement/{ticker}", settings, limit=years)
-    bal = _fmp_get(f"balance-sheet-statement/{ticker}", settings, limit=years)
-    cf = _fmp_get(f"cash-flow-statement/{ticker}", settings, limit=years)
+    inc = _fmp_get("income-statement", settings, symbol=ticker, limit=years)
+    bal = _fmp_get("balance-sheet-statement", settings, symbol=ticker, limit=years)
+    cf = _fmp_get("cash-flow-statement", settings, symbol=ticker, limit=years)
 
     return FinancialHistory(
         ticker=ticker,
         income=[
             IncomeStatement(
                 ticker=ticker,
-                fiscal_year=int(r.get("calendarYear", 0)),
+                fiscal_year=int(r.get("fiscalYear", 0)),
                 operating_revenue=r.get("revenue"),
                 gross_profit=r.get("grossProfit"),
                 operating_income=r.get("operatingIncome"),
@@ -104,7 +106,7 @@ def _financials_fmp(ticker: str, settings: Settings, years: int) -> FinancialHis
         balance=[
             BalanceSheet(
                 ticker=ticker,
-                fiscal_year=int(r.get("calendarYear", 0)),
+                fiscal_year=int(r.get("fiscalYear", 0)),
                 total_assets=r.get("totalAssets"),
                 total_debt=r.get("totalDebt"),
                 total_equity=r.get("totalStockholdersEquity"),
@@ -116,11 +118,12 @@ def _financials_fmp(ticker: str, settings: Settings, years: int) -> FinancialHis
         cash_flow=[
             CashFlow(
                 ticker=ticker,
-                fiscal_year=int(r.get("calendarYear", 0)),
+                fiscal_year=int(r.get("fiscalYear", 0)),
                 operating_cash_flow=r.get("operatingCashFlow"),
                 capital_expenditure=r.get("capitalExpenditure"),
                 free_cash_flow=r.get("freeCashFlow"),
-                dividends_paid=r.get("dividendsPaid"),
+                # nella API stable il campo si chiama netDividendsPaid (negativo)
+                dividends_paid=r.get("netDividendsPaid", r.get("dividendsPaid")),
                 source="fmp",
             )
             for r in cf
