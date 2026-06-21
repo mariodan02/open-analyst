@@ -33,17 +33,24 @@ class RebalanceRow:
 
 
 def rebalance(holdings: list[Holding], settings: Settings, new_cash: float = 0.0) -> dict:
+    base = settings.base_currency
     rows: list[RebalanceRow] = []
-    prices: dict[str, float] = {}
+    prices: dict[str, float] = {}  # prezzo per quota nella valuta base
     warnings: list[str] = []
 
     for h in holdings:
         try:
             p = providers.get_price(h.ticker)
-            prices[h.ticker] = p.price
+            try:
+                rate = providers.get_fx_rate(p.currency, base)
+            except Exception:  # noqa: BLE001
+                rate = 1.0
+                warnings.append(f"Cambio {p.currency}->{base} non disponibile: valore nominale.")
+            price_base = p.price * rate
+            prices[h.ticker] = price_base
             rows.append(RebalanceRow(
                 ticker=h.ticker, currency=p.currency,
-                market_value=round(h.shares * p.price, 2),
+                market_value=round(h.shares * price_base, 2),
                 target_pct=h.target_pct,
             ))
         except Exception as exc:  # noqa: BLE001
@@ -52,7 +59,7 @@ def rebalance(holdings: list[Holding], settings: Settings, new_cash: float = 0.0
     valid = [r for r in rows if r.error is None]
     if any(r.target_pct is None for r in valid):
         warnings.append("Manca target_pct su uno o più titoli: aggiungilo nel portfolio.json.")
-        return {"rows": rows, "warnings": warnings, "new_cash": new_cash}
+        return {"rows": rows, "warnings": sorted(set(warnings)), "new_cash": new_cash, "base_currency": base}
 
     total_market = sum(r.market_value for r in valid)
     target_sum = sum(r.target_pct for r in valid)
@@ -62,10 +69,10 @@ def rebalance(holdings: list[Holding], settings: Settings, new_cash: float = 0.0
     for r in valid:
         r.current_pct = round(100 * r.market_value / total_market, 2) if total_market else None
 
-    base = total_market + new_cash  # patrimonio dopo il versamento
+    patrimonio = total_market + new_cash  # totale dopo il versamento (in valuta base)
     if new_cash > 0:
         # solo acquisti: distribuisci la liquidità sui sottopeso
-        shortfalls = {r.ticker: max(0.0, (r.target_pct / 100) * base - r.market_value) for r in valid}
+        shortfalls = {r.ticker: max(0.0, (r.target_pct / 100) * patrimonio - r.market_value) for r in valid}
         total_short = sum(shortfalls.values())
         for r in valid:
             share = shortfalls[r.ticker] / total_short if total_short else r.target_pct / 100
@@ -73,7 +80,7 @@ def rebalance(holdings: list[Holding], settings: Settings, new_cash: float = 0.0
             r.action = "Compra" if r.trade_value > 0 else "-"
     else:
         for r in valid:
-            r.trade_value = round((r.target_pct / 100) * base - r.market_value, 2)
+            r.trade_value = round((r.target_pct / 100) * patrimonio - r.market_value, 2)
             r.action = "Compra" if r.trade_value > 0.005 else "Vendi" if r.trade_value < -0.005 else "-"
 
     for r in valid:
@@ -83,21 +90,20 @@ def rebalance(holdings: list[Holding], settings: Settings, new_cash: float = 0.0
 
     return {
         "rows": rows,
-        "warnings": warnings,
+        "warnings": sorted(set(warnings)),
         "new_cash": new_cash,
+        "base_currency": base,
         "total_market": round(total_market, 2),
-        "mixed_currency": len({r.currency for r in valid}) > 1,
     }
 
 
 def build_markdown(result: dict) -> str:
-    lines = ["# Ribilanciamento", ""]
+    base = result.get("base_currency", "")
+    lines = [f"# Ribilanciamento (in {base})", ""]
     if result["new_cash"]:
-        lines.append(f"**Nuova liquidità da versare:** {result['new_cash']} (solo acquisti)")
+        lines.append(f"**Nuova liquidità da versare:** {result['new_cash']} {base} (solo acquisti)")
     else:
         lines.append("**Modalità:** ribilanciamento pieno (compra/vendi)")
-    if result.get("mixed_currency"):
-        lines.append("\n> ⚠️ Valute miste: importi nominali senza conversione di cambio.")
     for w in result["warnings"]:
         lines.append(f"\n> ⚠️ {w}")
     lines.append("")

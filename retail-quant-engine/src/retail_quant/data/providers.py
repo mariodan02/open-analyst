@@ -7,11 +7,14 @@ tools.py le catturano e le trasformano in un messaggio per il modello).
 """
 from __future__ import annotations
 
+import os
 import re
+from pathlib import Path
 
 import requests
 
 from ..config import Settings
+from .cache import JsonCache
 from .schemas import (
     BalanceSheet,
     CashFlow,
@@ -78,18 +81,35 @@ def get_etf_profile(ticker: str, isin: str | None = None) -> EtfProfile:
 # --------------------------------------------------------------------------- #
 # justETF: profilo ETF per ISIN (TER, politica dividendi, indice). Nessuna
 # chiave; pagina pubblica. Le ancore data-testid sono stabili nel frontend.
+# I profili sono cache-ati su disco (TER e politica cambiano di rado): meno
+# richieste e resilienza se justETF è irraggiungibile entro la finestra.
 # --------------------------------------------------------------------------- #
 JUSTETF_PROFILE = "https://www.justetf.com/en/etf-profile.html"
 _JUSTETF_HEADERS = {"User-Agent": "Mozilla/5.0", "Accept-Language": "en"}
+# TTL della cache profili ETF (solo metadati statici: TER, accumulazione,
+# indice; MAI il prezzo). Tarabile via RQE_ETF_CACHE_DAYS; 0 = sempre fresco.
+_ETF_CACHE_DAYS = float(os.getenv("RQE_ETF_CACHE_DAYS", "7"))
+_ETF_CACHE = JsonCache(
+    Path(__file__).resolve().parents[3] / "cache" / "etf_profiles.json",
+    ttl_seconds=_ETF_CACHE_DAYS * 86400,
+)
 
 
 def _enrich_from_justetf(profile: EtfProfile, isin: str) -> None:
-    resp = requests.get(
-        JUSTETF_PROFILE, params={"isin": isin}, headers=_JUSTETF_HEADERS, timeout=_HTTP_TIMEOUT
-    )
-    resp.raise_for_status()
-    html = resp.text
+    data = _ETF_CACHE.get(isin)
+    if data is None:
+        resp = requests.get(
+            JUSTETF_PROFILE, params={"isin": isin}, headers=_JUSTETF_HEADERS, timeout=_HTTP_TIMEOUT
+        )
+        resp.raise_for_status()
+        data = _parse_justetf(resp.text)
+        _ETF_CACHE.set(isin, data)
+    _apply_justetf(profile, data)
 
+
+def _parse_justetf(html: str) -> dict:
+    """Estrae i campi dal profilo justETF in un dict serializzabile (cache-abile)."""
+    out: dict = {}
     name = _justetf_field(html, "etf-profile-header_etf-name")
     ter = _justetf_field(html, "etf-profile-header_ter-value")
     policy = _justetf_field(html, "etf-profile-header_distribution-policy-value")
@@ -99,27 +119,35 @@ def _enrich_from_justetf(profile: EtfProfile, isin: str) -> None:
     holdings = _justetf_field(html, "etf-profile-header_holdings-value")
 
     if name:
-        profile.name = name
+        out["name"] = name
     if index:
-        profile.index_name = index
+        out["index_name"] = index
     if replication:
-        profile.replication = replication
+        out["replication"] = replication
     if domicile:
-        profile.domicile = domicile
+        out["domicile"] = domicile
     if holdings:
         digits = re.sub(r"[^\d]", "", holdings)
         if digits:
-            profile.holdings = int(digits)
+            out["holdings"] = int(digits)
     if policy:
-        profile.distribution_policy = policy
-        # un ETF ad accumulazione non distribuisce: il rendimento da yfinance
-        # (spesso 0/None) non è informativo, azzeralo per non confondere.
-        if "accumul" in policy.lower():
-            profile.dividend_yield = None
+        out["distribution_policy"] = policy
     if ter:
         pct = _first_number(ter)
         if pct is not None:
-            profile.expense_ratio = pct / 100  # "0.19% p.a." -> 0.0019
+            out["expense_ratio"] = pct / 100  # "0.19% p.a." -> 0.0019
+    return out
+
+
+def _apply_justetf(profile: EtfProfile, data: dict) -> None:
+    for field in ("name", "index_name", "replication", "domicile", "holdings",
+                  "distribution_policy", "expense_ratio"):
+        if data.get(field) is not None:
+            setattr(profile, field, data[field])
+    # un ETF ad accumulazione non distribuisce: il rendimento da yfinance
+    # (spesso 0/None) non è informativo, azzeralo per non confondere.
+    if (profile.distribution_policy or "").lower().find("accumul") >= 0:
+        profile.dividend_yield = None
     profile.source = "justetf+yfinance"
 
 
@@ -135,6 +163,36 @@ def _justetf_field(html: str, testid: str) -> str | None:
 def _first_number(text: str) -> float | None:
     m = re.search(r"[-+]?\d+(?:\.\d+)?", text)
     return float(m.group()) if m else None
+
+
+def get_isin(ticker: str) -> str | None:
+    """ISIN da yfinance. Funziona per le azioni; molti ETF europei tornano '-'
+    (in quel caso passa l'ISIN a mano). None se non disponibile."""
+    import yfinance as yf
+
+    v = getattr(yf.Ticker(ticker), "isin", None)
+    return v if v and v not in ("-", "") else None
+
+
+# tasso di cambio: cache in-processo (i tassi cambiano al più giornalmente, un
+# singolo run usa lo stesso valore)
+_FX_CACHE: dict[tuple[str, str], float] = {}
+
+
+def get_fx_rate(from_cur: str, to_cur: str) -> float:
+    """Tasso per convertire 1 unità di from_cur in to_cur (yfinance FROMTO=X)."""
+    from_cur, to_cur = from_cur.upper(), to_cur.upper()
+    if from_cur == to_cur:
+        return 1.0
+    key = (from_cur, to_cur)
+    if key not in _FX_CACHE:
+        import yfinance as yf
+
+        hist = yf.Ticker(f"{from_cur}{to_cur}=X").history(period="5d")
+        if hist is None or hist.empty:
+            raise ValueError(f"Tasso di cambio non disponibile: {from_cur}->{to_cur}")
+        _FX_CACHE[key] = float(hist["Close"].iloc[-1])
+    return _FX_CACHE[key]
 
 
 def get_catalysts(ticker: str) -> dict:

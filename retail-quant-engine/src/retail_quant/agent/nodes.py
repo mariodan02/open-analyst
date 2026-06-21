@@ -38,8 +38,14 @@ def make_fetch(settings: Settings):
         is_etf = price is not None and price.asset_type in ETF_LIKE
         if is_etf:
             # ETF/fondo: niente bilanci (eviti il 402 FMP). Prendi il profilo.
+            isin = state.get("isin")
+            if not isin:
+                try:  # tenta il recupero automatico (riesce per alcuni ETF)
+                    isin = providers.get_isin(ticker)
+                except Exception:  # noqa: BLE001
+                    isin = None
             try:
-                etf_profile = providers.get_etf_profile(ticker, state.get("isin"))
+                etf_profile = providers.get_etf_profile(ticker, isin)
             except Exception as exc:  # noqa: BLE001
                 errors.append(f"etf_profile: {exc}")
         else:

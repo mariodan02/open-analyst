@@ -33,6 +33,7 @@ class Settings:
     nvidia_api_key: str | None
     fmp_api_key: str | None
     lens: str
+    base_currency: str
     model_orchestrator: str
     model_extractor: str
 
@@ -48,6 +49,9 @@ class Settings:
             nvidia_api_key=_require("NVIDIA_API_KEY") if require_llm else os.getenv("NVIDIA_API_KEY"),
             fmp_api_key=os.getenv("FMP_API_KEY"),  # opzionale: fallback su yfinance
             lens=lens,
+            # valuta dei totali di portafoglio (returns/rebalance); i valori in
+            # altre valute vengono convertiti via FX
+            base_currency=os.getenv("RQE_BASE_CURRENCY", "EUR").upper(),
             model_orchestrator=os.getenv(
                 "RQE_MODEL_ORCHESTRATOR", "meta/llama-3.1-405b-instruct"
             ),
