@@ -16,7 +16,9 @@ investment-bank jargon, no filler.
 A structured analysis note:
 1. **In brief** — 2-3 lines: what the company does and the thesis in one sentence.
 2. **Reading the numbers** — interpret the provided metrics (what they say about
-   valuation, growth, financial strength). Explain the "so what".
+   valuation, growth, financial strength). When moat indicators are present
+   (gross/operating margins, ROE, margin stability, `moat_rating`), judge the
+   durability of the competitive advantage. Explain the "so what".
 3. **Bull vs bear** — the 2-3 points in favor and the 2-3 points against.
 4. **Verdict** — a retail-oriented conclusion (e.g. "attractive below X", "too
    expensive now", "high quality but needs a margin of safety").

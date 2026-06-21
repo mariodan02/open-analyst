@@ -10,7 +10,9 @@ from ..config import Settings
 from ..data import providers
 from ..data.schemas import ETF_LIKE
 from ..metrics import compute as compute_metrics
+from ..metrics import earnings as earnings_metrics
 from . import alerts as alert_rules
+from . import thesis as thesis_rules
 from .portfolio import Holding
 
 
@@ -44,13 +46,17 @@ def _snapshot(holding: Holding, settings: Settings, lens: str) -> dict:
     fin = providers.get_financials(ticker, settings)
     metrics = compute_metrics(lens, price, fin)
     latest_fy = fin.income[0].fiscal_year if fin.income else None
-    return {
+    snap = {
         "price": price.price,
         "asset_type": price.asset_type,
         "fiscal_year": latest_fy,
         "pe_ratio": metrics.get("pe_ratio"),
         "margin_of_safety_pct": metrics.get("margin_of_safety_pct"),
+        "moat_rating": metrics.get("moat_rating"),
     }
+    # variazioni YoY dell'ultimo bilancio: qualificano l'alert "nuovo bilancio"
+    snap.update(earnings_metrics.latest_changes(fin))
+    return snap
 
 
 def _pct(frac: float | None) -> float | None:
@@ -72,6 +78,7 @@ def monitor(holdings: list[Holding], settings: Settings, prev_state: dict) -> tu
             continue
 
         a = alert_rules.evaluate(h.ticker, h.cost_basis, prev_state.get(h.ticker), cur, settings.lens)
+        a += thesis_rules.evaluate(h.ticker, h.thesis, cur)
         results.append(MonitorResult(h.ticker, snapshot=cur, alerts=a))
         new_state[h.ticker] = cur
     return results, new_state

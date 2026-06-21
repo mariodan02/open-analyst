@@ -24,6 +24,30 @@ def _num(v):
         return None
 
 
+def _earnings_message(cur_fy: float, cur: dict) -> str:
+    """Messaggio del nuovo bilancio con le variazioni YoY disponibili."""
+    parts = [f"Nuovo bilancio FY{int(cur_fy)}"]
+    rev = _num(cur.get("revenue_yoy_pct"))
+    ni = _num(cur.get("net_income_yoy_pct"))
+    om = _num(cur.get("op_margin_change_pp"))
+    if rev is not None:
+        parts.append(f"ricavi {rev:+.0f}%")
+    if ni is not None:
+        parts.append(f"utile {ni:+.0f}%")
+    if om is not None:
+        parts.append(f"margine op. {om:+.1f}pp")
+    msg = parts[0] + ((": " + ", ".join(parts[1:])) if len(parts) > 1 else "")
+    # accento sui peggioramenti: utile in calo o margine compresso
+    flags = []
+    if ni is not None and ni < 0:
+        flags.append("utile in calo")
+    if om is not None and om < 0:
+        flags.append("margine compresso")
+    if flags:
+        msg += " — " + ", ".join(flags)
+    return msg
+
+
 def evaluate(ticker: str, cost_basis: float, prev: dict | None, cur: dict, lens: str) -> list[Alert]:
     alerts: list[Alert] = []
     cur_price = _num(cur.get("price"))
@@ -43,11 +67,11 @@ def evaluate(ticker: str, cost_basis: float, prev: dict | None, cur: dict, lens:
             if abs(move) >= PRICE_MOVE_PCT:
                 alerts.append(Alert(ticker, "warn", f"Prezzo {move:+.1f}% dall'ultimo controllo ({prev_price:.2f} → {cur_price:.2f})"))
 
-        # 3) Nuova trimestrale/annuale pubblicata
+        # 3) Nuovo bilancio pubblicato: qualifica con le variazioni YoY
         prev_fy = _num(prev.get("fiscal_year"))
         cur_fy = _num(cur.get("fiscal_year"))
         if prev_fy and cur_fy and cur_fy > prev_fy:
-            alerts.append(Alert(ticker, "warn", f"Nuovi dati di bilancio pubblicati (FY{int(cur_fy)})"))
+            alerts.append(Alert(ticker, "warn", _earnings_message(cur_fy, cur)))
 
         # 4) Lente value: margine di sicurezza passato da positivo a negativo
         if lens == "value":

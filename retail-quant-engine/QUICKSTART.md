@@ -17,11 +17,26 @@ source .venv/bin/activate
 
 ```bash
 python -m retail_quant.agent.run GOOG
+# ETF: aggiungi l'ISIN per il profilo justETF (TER, accumulazione/distribuzione)
+python -m retail_quant.agent.run VWCE.MI --isin IE00BK5BQT80
 ```
 
 - Esegue `fetch → metrics → thesis (LLM) → validate`.
+- **ETF riconosciuti in automatico**: saltano bilanci e calcoli da azione; la
+  tesi è scritta da un prompt dedicato (costo/struttura/diversificazione) sui
+  dati justETF, non un DCF inapplicabile.
 - Tempo tipico: ~60–70s (DeepSeek su NVIDIA).
 - Salva il report in `reports/<TICKER>-<lente>-<data>.md` e lo stampa a video.
+
+---
+
+## ⚖️ Comps — valutazione relativa vs pari (Fase extra)
+
+```bash
+# primo ticker = target, gli altri = pari; niente LLM, solo numeri
+python -m retail_quant.comps.run AAPL MSFT GOOGL META
+```
+Tabella di P/E, P/S e margini, mediana dei pari e verdetto (più caro/economico).
 
 ---
 
@@ -67,7 +82,16 @@ python -m retail_quant.monitor.run --file portfolio.json
 ```
 
 - Calcola P/L vs prezzo di carico e avvisa solo sui **cambiamenti** (prezzo,
-  nuovo bilancio, perdita oltre soglia). Stato persistito in `state/`.
+  nuovo bilancio con variazioni YoY ricavi/utile/margine, perdita oltre soglia).
+  Stato persistito in `state/`.
+- **Tesi d'acquisto** (opzionale): aggiungi `thesis` a un titolo e il monitor
+  avvisa se le ipotesi si rompono (es. P/E oltre il tuo max, crescita sotto il
+  minimo, moat sceso):
+
+```json
+{"ticker": "AAPL", "shares": 10, "cost_basis": 150.0,
+ "thesis": {"max_pe": 35, "min_revenue_growth_pct": 3, "min_moat_rating": "wide"}}
+```
 - **ETF**: riconosciuti in automatico (saltano i conti da azione). Aggiungi
   l'`isin` nel JSON per il profilo justETF (TER, accumulazione/distribuzione):
 

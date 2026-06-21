@@ -1,8 +1,10 @@
-"""Value lens: P/E, FCF yield, debt/equity, and a DCF-based margin of safety."""
+"""Value lens: P/E, FCF yield, debt/equity, a DCF-based margin of safety, and
+moat indicators (durability of the advantage)."""
 from __future__ import annotations
 
 from ..data.schemas import FinancialHistory, PriceSnapshot
 from ..valuation.dcf import intrinsic_value
+from . import moat
 
 
 def _latest(items):
@@ -33,4 +35,7 @@ def compute(price: PriceSnapshot, fin: FinancialHistory) -> dict:
         out["margin_of_safety_pct"] = dcf["margin_of_safety_pct"]
         out["wacc_pct"] = dcf["wacc_pct"]
         out["_valuation_method"] = dcf["_method"]
+
+    # moat: la durabilità del vantaggio rafforza il giudizio value
+    out.update(moat.compute(fin))
     return out
