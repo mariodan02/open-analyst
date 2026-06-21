@@ -41,6 +41,7 @@ def get_price(ticker: str) -> PriceSnapshot:
         currency=info.get("currency", "USD"),
         market_cap=info.get("marketCap"),
         shares_outstanding=info.get("sharesOutstanding"),
+        beta=info.get("beta"),
     )
 
 

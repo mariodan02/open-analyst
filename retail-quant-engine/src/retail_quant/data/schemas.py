@@ -15,6 +15,7 @@ class PriceSnapshot(BaseModel):
     currency: str = "USD"
     market_cap: float | None = None
     shares_outstanding: float | None = None
+    beta: float | None = None  # per il WACC (CAPM) nel DCF
     source: str = "yfinance"
 
 

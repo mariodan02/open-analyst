@@ -1,12 +1,13 @@
 """Lente VALUE: aziende solide sottovalutate (Buffett/Graham).
 
 Metriche: P/E, FCF yield, debito/equity, e un margine di sicurezza GREZZO
-basato su un DCF semplificato. NB: il margine di sicurezza serio lo fa la
+basato su un DCF semplificato. NB: il margine di sicurezza lo fa la
 skill dcf-model del fork (script Python) — qui è un primo segnale, non oro colato.
 """
 from __future__ import annotations
 
 from ..data.schemas import FinancialHistory, PriceSnapshot
+from ..valuation.dcf import intrinsic_value
 
 
 def _latest(items):
@@ -34,18 +35,12 @@ def compute(price: PriceSnapshot, fin: FinancialHistory) -> dict:
     if bal and bal.total_debt is not None and bal.total_equity and bal.total_equity > 0:
         out["debt_to_equity"] = round(bal.total_debt / bal.total_equity, 2)
 
-    # margine di sicurezza GREZZO: FCF capitalizzato a un tasso prudente (10%)
-    # come proxy di fair value, confrontato col market cap.
-    # SOLO con FCF POSITIVO: un'azienda che brucia cassa non ha un "fair value"
-    # da capitalizzare (altrimenti uscirebbe un margine di sicurezza falso-positivo).
-    if cf and cf.free_cash_flow and cf.free_cash_flow > 0 and price.market_cap:
-        fair_value = cf.free_cash_flow / 0.10  # perpetuity senza crescita
-        out["rough_fair_value"] = round(fair_value, 0)
-        out["margin_of_safety_pct"] = round(
-            100 * (fair_value - price.market_cap) / fair_value, 1
-        )
-        out["_note"] = (
-            "margin_of_safety è una stima grezza (FCF/10%); "
-            "usa la skill dcf-model per la valutazione seria"
-        )
+    # margine di sicurezza: DCF (metodologia skill dcf-model del fork).
+    # Restituisce None se i dati non bastano (es. FCF negativo) -> niente MoS finto.
+    dcf = intrinsic_value(price, fin)
+    if dcf:
+        out["intrinsic_per_share"] = dcf["intrinsic_per_share"]
+        out["margin_of_safety_pct"] = dcf["margin_of_safety_pct"]
+        out["wacc_pct"] = dcf["wacc_pct"]
+        out["_valuation_method"] = dcf["_method"]
     return out
