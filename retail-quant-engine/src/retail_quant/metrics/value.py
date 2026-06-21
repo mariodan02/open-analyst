@@ -28,13 +28,17 @@ def compute(price: PriceSnapshot, fin: FinancialHistory) -> dict:
     if cf and cf.free_cash_flow and price.market_cap:
         out["fcf_yield_pct"] = round(100 * cf.free_cash_flow / price.market_cap, 2)
 
-    # leva finanziaria
-    if bal and bal.total_debt is not None and bal.total_equity:
+    # leva finanziaria. Solo con patrimonio netto POSITIVO: con equity ≤ 0 il
+    # rapporto diventa negativo e sembrerebbe "poca leva" mentre è il contrario
+    # (azienda molto tirata) -> meglio non calcolarlo (n/d).
+    if bal and bal.total_debt is not None and bal.total_equity and bal.total_equity > 0:
         out["debt_to_equity"] = round(bal.total_debt / bal.total_equity, 2)
 
     # margine di sicurezza GREZZO: FCF capitalizzato a un tasso prudente (10%)
     # come proxy di fair value, confrontato col market cap.
-    if cf and cf.free_cash_flow and price.market_cap:
+    # SOLO con FCF POSITIVO: un'azienda che brucia cassa non ha un "fair value"
+    # da capitalizzare (altrimenti uscirebbe un margine di sicurezza falso-positivo).
+    if cf and cf.free_cash_flow and cf.free_cash_flow > 0 and price.market_cap:
         fair_value = cf.free_cash_flow / 0.10  # perpetuity senza crescita
         out["rough_fair_value"] = round(fair_value, 0)
         out["margin_of_safety_pct"] = round(

@@ -79,7 +79,13 @@ def _fmp_get(path: str, settings: Settings, **params) -> list[dict]:
 def get_financials(ticker: str, settings: Settings, years: int = 5) -> FinancialHistory:
     ticker = ticker.upper()
     if settings.fmp_api_key:
-        return _financials_fmp(ticker, settings, years)
+        try:
+            return _financials_fmp(ticker, settings, years)
+        except (requests.RequestException, RuntimeError) as exc:
+            # FMP può rifiutare la richiesta (402 quota/piano, 403 chiave, rete).
+            # Non è un errore fatale: ripieghiamo su yfinance (conto economico
+            # parziale) così l'analisi prosegue invece di andare in crash.
+            print(f"[warn] FMP non disponibile per {ticker} ({exc}); uso yfinance.")
     return _financials_yfinance(ticker, years)
 
 
@@ -132,13 +138,18 @@ def _financials_fmp(ticker: str, settings: Settings, years: int) -> FinancialHis
 
 
 def _financials_yfinance(ticker: str, years: int) -> FinancialHistory:
-    """Fallback senza chiave FMP. Meno granulare ma gratis."""
+    """Fallback senza chiave FMP (o se FMP rifiuta). Meno granulare ma gratis.
+
+    yfinance espone tre DataFrame separati (righe=voci, colonne=anni). Le
+    etichette delle righe cambiano tra versioni, quindi `_safe` prova più nomi
+    e torna None se nessuno c'è — così le metriche calcolano ciò che possono.
+    """
     import yfinance as yf
 
     t = yf.Ticker(ticker)
     hist = FinancialHistory(ticker=ticker)
 
-    fin = t.financials  # DataFrame: righe=voci, colonne=anni
+    fin = t.financials  # conto economico
     if fin is not None and not fin.empty:
         for col in list(fin.columns)[:years]:
             year = getattr(col, "year", 0)
@@ -153,12 +164,54 @@ def _financials_yfinance(ticker: str, years: int) -> FinancialHistory:
                     source="yfinance",
                 )
             )
+
+    bal = t.balance_sheet  # stato patrimoniale -> debito/equity
+    if bal is not None and not bal.empty:
+        for col in list(bal.columns)[:years]:
+            hist.balance.append(
+                BalanceSheet(
+                    ticker=ticker,
+                    fiscal_year=getattr(col, "year", 0),
+                    total_assets=_safe(bal, "Total Assets", col),
+                    total_debt=_safe(bal, "Total Debt", col),
+                    total_equity=_safe(
+                        bal, "Stockholders Equity", col, "Total Stockholder Equity"
+                    ),
+                    cash_and_equivalents=_safe(
+                        bal, "Cash And Cash Equivalents", col
+                    ),
+                    source="yfinance",
+                )
+            )
+
+    cf = t.cashflow  # rendiconto finanziario -> FCF
+    if cf is not None and not cf.empty:
+        for col in list(cf.columns)[:years]:
+            hist.cash_flow.append(
+                CashFlow(
+                    ticker=ticker,
+                    fiscal_year=getattr(col, "year", 0),
+                    operating_cash_flow=_safe(cf, "Operating Cash Flow", col),
+                    capital_expenditure=_safe(cf, "Capital Expenditure", col),
+                    free_cash_flow=_safe(cf, "Free Cash Flow", col),
+                    dividends_paid=_safe(cf, "Cash Dividends Paid", col),
+                    source="yfinance",
+                )
+            )
+
     return hist
 
 
-def _safe(df, row: str, col):
-    try:
-        val = df.loc[row, col]
-        return float(val) if val == val else None  # NaN check
-    except (KeyError, TypeError, ValueError):
-        return None
+def _safe(df, row: str, col, *alt_rows: str):
+    """Legge df.loc[row, col] provando anche nomi-riga alternativi (yfinance
+    cambia le etichette tra versioni). Torna None se assente o NaN."""
+    for name in (row, *alt_rows):
+        try:
+            val = df.loc[name, col]
+        except (KeyError, TypeError):
+            continue
+        try:
+            return float(val) if val == val else None  # NaN check
+        except (TypeError, ValueError):
+            return None
+    return None

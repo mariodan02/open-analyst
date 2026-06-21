@@ -19,8 +19,9 @@ def compute(price: PriceSnapshot, fin: FinancialHistory) -> dict:
     if div_paid and price.market_cap:
         out["dividend_yield_pct"] = round(100 * div_paid / price.market_cap, 2)
 
-    # payout ratio = dividendi / utile netto
-    if div_paid and inc and inc.net_income:
+    # payout ratio = dividendi / utile netto. Solo con utile POSITIVO: con utile
+    # negativo il rapporto diventa negativo e sembrerebbe "basso/sano" a torto.
+    if div_paid and inc and inc.net_income and inc.net_income > 0:
         out["payout_ratio_pct"] = round(100 * div_paid / inc.net_income, 1)
 
     # copertura con FCF (più severa del payout su utili)

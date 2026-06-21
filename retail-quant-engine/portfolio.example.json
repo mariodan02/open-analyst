@@ -1,0 +1,8 @@
+{
+  "_nota": "Copia questo file in portfolio.json e metti i TUOI titoli e prezzi di carico.",
+  "holdings": [
+    {"ticker": "AAPL", "shares": 10, "cost_basis": 150.0},
+    {"ticker": "PFE",  "shares": 50, "cost_basis": 28.0},
+    {"ticker": "KO",   "shares": 20, "cost_basis": 60.0}
+  ]
+}
