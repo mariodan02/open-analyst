@@ -1,0 +1,33 @@
+# Universo di esempio per lo screening (un ticker per riga, # = commento).
+# Uso: python -m retail_quant.screen.run --file universe.sample.txt
+# Copia in universe.txt (gitignorato) e mettici i tuoi nomi.
+AAPL
+MSFT
+GOOGL
+AMZN
+META
+NVDA
+JNJ
+PFE
+MRK
+ABBV
+KO
+PEP
+PG
+WMT
+COST
+XOM
+CVX
+JPM
+BAC
+V
+MA
+HD
+MCD
+DIS
+INTC
+CSCO
+VZ
+T
+IBM
+ORCL

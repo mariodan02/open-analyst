@@ -21,7 +21,7 @@ from .screener import screen_universe
 
 REPORTS_DIR = Path(__file__).resolve().parents[3] / "reports"
 
-# piccolo universo di default, utile per provare al volo
+# default universe used when no tickers/file are given
 DEFAULT_UNIVERSE = ["AAPL", "MSFT", "GOOGL", "KO", "JNJ", "INTC", "PFE", "XOM"]
 
 

@@ -1,14 +1,12 @@
-"""Criteri di screening per lente (deterministici).
+"""Per-lens screening criteria.
 
-Ogni lente ha: una soglia di PASS (regole secche) e uno SCORE per ordinare i
-candidati. Tutto trasparente e tarabile: niente magia, sono i tuoi soldi.
-
-`evaluate(lens, metrics)` -> (passes: bool, score: float, reasons: list[str])
-dove reasons spiega in chiaro perché un titolo passa o no.
+Each lens defines pass/fail rules and a ranking score.
+`evaluate(lens, metrics)` -> (passes, score, reasons), where reasons lists the
+per-check outcomes.
 """
 from __future__ import annotations
 
-# Soglie tarabili. Cambia qui per rendere lo screening più/meno severo.
+# Tunable thresholds.
 THRESHOLDS = {
     "value": {"pe_max": 25.0, "fcf_yield_min": 4.0, "de_max": 1.5},
     "growth": {"rev_cagr_min": 10.0, "ni_cagr_min": 8.0},
@@ -48,8 +46,7 @@ def _value(m: dict):
     pe = m.get("pe_ratio")
     fcfy = m.get("fcf_yield_pct")
     de = m.get("debt_to_equity")
-    # P/E valido solo se POSITIVO: un P/E negativo = utili negativi = azienda in
-    # perdita, NON un titolo "economico".
+    # a negative P/E means negative earnings, not a cheap stock
     pe_ok = pe is not None and 0 < pe < t["pe_max"]
     checks = [
         _check(f"P/E positivo e < {t['pe_max']}", pe_ok, pe),

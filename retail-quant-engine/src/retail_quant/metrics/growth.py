@@ -5,9 +5,8 @@ from ..data.schemas import FinancialHistory, PriceSnapshot
 
 
 def _cagr(latest: float, oldest: float, years: int) -> float | None:
-    # CAGR definito solo tra valori dello STESSO segno positivo. Se uno dei due
-    # è ≤ 0 (es. utile passato in perdita) il calcolo non ha senso e darebbe un
-    # numero complesso o un risultato fuorviante -> None.
+    # CAGR is only defined for same-sign positive endpoints; a non-positive value
+    # (e.g. a swing into loss) would give a complex or misleading result
     if latest and oldest and latest > 0 and oldest > 0 and years > 0:
         return round(100 * ((latest / oldest) ** (1 / years) - 1), 2)
     return None

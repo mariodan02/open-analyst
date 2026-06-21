@@ -1,12 +1,8 @@
-"""I data provider esposti come tool LangChain, con VALIDAZIONE DIFENSIVA.
+"""Data providers exposed as LangChain tools.
 
-Perché qui e non altrove: i modelli open-weight (Llama/Qwen) sbagliano il tool
-calling più di Claude — passano ticker sporchi, chiamano col tipo sbagliato, ecc.
-Ogni tool quindi:
-  1. normalizza/valida l'input (ticker),
-  2. cattura le eccezioni di rete e le restituisce come messaggio leggibile
-     dal modello invece di far crashare il grafo,
-  3. restituisce sempre JSON serializzabile.
+Each tool normalizes its ticker input, catches exceptions and returns them as a
+JSON error payload instead of raising, and always returns a serializable string.
+This keeps the graph robust to malformed tool calls from the model.
 """
 from __future__ import annotations
 
