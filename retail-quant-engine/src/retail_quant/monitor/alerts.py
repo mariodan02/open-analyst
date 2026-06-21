@@ -8,6 +8,7 @@ from dataclasses import dataclass
 # soglie tarabili
 PRICE_MOVE_PCT = 10.0       # scostamento prezzo dall'ultimo controllo
 POSITION_LOSS_PCT = -20.0   # perdita sulla posizione vs prezzo di carico
+EARNINGS_SOON_DAYS = 14     # preavviso prima della prossima earnings
 
 
 @dataclass
@@ -57,6 +58,12 @@ def evaluate(ticker: str, cost_basis: float, prev: dict | None, cur: dict, lens:
         pl = (cur_price - cost_basis) / cost_basis * 100
         level = "warn" if pl <= POSITION_LOSS_PCT else "info"
         alerts.append(Alert(ticker, level, f"P/L posizione: {pl:+.1f}% (carico {cost_basis:.2f}, ora {cur_price:.2f})"))
+
+    # Earnings imminente (stato corrente, non un cambiamento): preavviso
+    dte = _num(cur.get("days_to_earnings"))
+    if dte is not None and 0 <= dte <= EARNINGS_SOON_DAYS:
+        when = "oggi" if dte == 0 else f"tra {int(dte)} giorni"
+        alerts.append(Alert(ticker, "warn", f"Earnings {when}"))
 
     # le regole sotto richiedono un controllo precedente con cui confrontare
     if prev:

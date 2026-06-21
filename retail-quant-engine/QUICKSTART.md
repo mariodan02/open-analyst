@@ -40,6 +40,24 @@ Tabella di P/E, P/S e margini, mediana dei pari e verdetto (più caro/economico)
 
 ---
 
+## 📈 Strumenti di portafoglio (deterministici, niente LLM)
+
+```bash
+# performance: P/L totale, per titolo e pesi
+python -m retail_quant.returns.run --file portfolio.json
+
+# ribilanciamento ai pesi target_pct; con --cash distribuisce solo in acquisti
+python -m retail_quant.rebalance.run --file portfolio.json --cash 500
+
+# prossimi eventi (earnings/dividendi) delle azioni in portafoglio
+python -m retail_quant.catalyst.run --file portfolio.json --days 90
+```
+
+`target_pct` (ribilanciamento) e `thesis` (monitor) sono campi opzionali per
+titolo nel `portfolio.json` — vedi `portfolio.example.json`.
+
+---
+
 ## 🔍 Controlli opzionali (NON sono l'analisi)
 
 **Solo dati + metriche, niente IA, niente costo** — utile per verificare un

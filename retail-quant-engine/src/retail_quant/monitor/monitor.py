@@ -5,6 +5,7 @@ gli alert. Aggiorna lo stato per il prossimo giro.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 
 from ..config import Settings
 from ..data import providers
@@ -56,6 +57,14 @@ def _snapshot(holding: Holding, settings: Settings, lens: str) -> dict:
     }
     # variazioni YoY dell'ultimo bilancio: qualificano l'alert "nuovo bilancio"
     snap.update(earnings_metrics.latest_changes(fin))
+
+    # prossima earnings: alert proattivo (prima che esca il bilancio)
+    try:
+        ed = providers.get_catalysts(ticker).get("earnings_date")
+        if isinstance(ed, date):
+            snap["days_to_earnings"] = (ed - date.today()).days
+    except Exception:  # noqa: BLE001 - il calendario è un di più, non bloccare
+        pass
     return snap
 
 

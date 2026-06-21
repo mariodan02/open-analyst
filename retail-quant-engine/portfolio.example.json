@@ -2,10 +2,11 @@
   "_nota": "Copia questo file in portfolio.json e metti i TUOI titoli e prezzi di carico.",
   "_nota_isin": "isin (opzionale) abilita il profilo ETF justETF (TER, accumulazione).",
   "_nota_thesis": "thesis (opzionale) sono i guardrail che il monitor verifica ogni giro.",
+  "_nota_target": "target_pct (opzionale) è il peso obiettivo per il ribilanciamento.",
   "holdings": [
-    {"ticker": "AAPL", "shares": 10, "cost_basis": 150.0,
+    {"ticker": "AAPL", "shares": 10, "cost_basis": 150.0, "target_pct": 40,
      "thesis": {"max_pe": 35, "min_revenue_growth_pct": 3, "min_moat_rating": "wide"}},
-    {"ticker": "PFE",  "shares": 50, "cost_basis": 28.0},
-    {"ticker": "VWCE.MI", "shares": 6, "cost_basis": 151.27, "isin": "IE00BK5BQT80"}
+    {"ticker": "PFE",  "shares": 50, "cost_basis": 28.0, "target_pct": 20},
+    {"ticker": "VWCE.MI", "shares": 6, "cost_basis": 151.27, "isin": "IE00BK5BQT80", "target_pct": 40}
   ]
 }

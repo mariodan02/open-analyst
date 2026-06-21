@@ -28,6 +28,7 @@ class Holding:
     # tesi d'acquisto opzionale: guardrail che il monitor verifica a ogni giro
     # (es. {"max_pe": 35, "min_revenue_growth_pct": 5, "min_moat_rating": "narrow"})
     thesis: dict | None = None
+    target_pct: float | None = None  # peso obiettivo per il ribilanciamento
 
 
 def load_portfolio(path: str | Path) -> list[Holding]:
@@ -39,6 +40,7 @@ def load_portfolio(path: str | Path) -> list[Holding]:
             continue
         isin = h.get("isin")
         thesis = h.get("thesis")
+        target = h.get("target_pct")
         out.append(
             Holding(
                 ticker=str(h["ticker"]).upper(),
@@ -46,6 +48,7 @@ def load_portfolio(path: str | Path) -> list[Holding]:
                 cost_basis=float(h.get("cost_basis", 0) or 0),
                 isin=str(isin).upper() if isin else None,
                 thesis=thesis if isinstance(thesis, dict) else None,
+                target_pct=float(target) if target is not None else None,
             )
         )
     if not out:

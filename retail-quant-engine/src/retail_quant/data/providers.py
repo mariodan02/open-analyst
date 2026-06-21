@@ -137,6 +137,27 @@ def _first_number(text: str) -> float | None:
     return float(m.group()) if m else None
 
 
+def get_catalysts(ticker: str) -> dict:
+    """Prossimi eventi (date) da yfinance: earnings e stacco dividendo.
+
+    Restituisce datetime.date o None. Le azioni hanno earnings; gli ETF di solito
+    no (calendar vuoto). Degrada a None senza sollevare.
+    """
+    import yfinance as yf
+
+    cal = getattr(yf.Ticker(ticker), "calendar", None) or {}
+
+    def _first_date(v):
+        if isinstance(v, list):
+            return v[0] if v else None
+        return v
+
+    return {
+        "earnings_date": _first_date(cal.get("Earnings Date")),
+        "ex_dividend_date": _first_date(cal.get("Ex-Dividend Date")),
+    }
+
+
 def get_news(ticker: str, limit: int = 5) -> list[NewsItem]:
     import yfinance as yf
 
