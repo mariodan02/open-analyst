@@ -11,17 +11,6 @@ Guida rapida per analizzare un ticker.
 cd retail-quant-engine
 source .venv/bin/activate
 ```
-
-Il file `.env` deve contenere le chiavi (vedi `.env.example`):
-
-| Variabile | Serve per | Obbligatoria? |
-|---|---|---|
-| `NVIDIA_API_KEY` | il nodo `thesis` (LLM) | sì, per l'analisi |
-| `FMP_API_KEY` | i bilanci (5 anni) | opzionale; senza/se rifiuta → fallback yfinance |
-| `RQ_LENS` | lente di calcolo (`value`/`growth`/`dividends`/`trading`) | opzionale, default `value` |
-
-> yfinance (prezzo/news/bilanci) non richiede chiavi.
-
 ---
 
 ## ▶️ Analizzare un ticker (il comando principale)
@@ -70,11 +59,29 @@ Cambi lente = cambi i calcoli (nodo metrics), **stessi dati**.
 
 ---
 
+## 🐕 Monitoraggio del portafoglio (Fase 3)
+
+```bash
+# copia il modello e mettici i tuoi titoli, poi:
+python -m retail_quant.monitor.run --file portfolio.json
+```
+
+- Calcola P/L vs prezzo di carico e avvisa solo sui **cambiamenti** (prezzo,
+  nuovo bilancio, perdita oltre soglia). Stato persistito in `state/`.
+- **ETF**: riconosciuti in automatico (saltano i conti da azione). Aggiungi
+  l'`isin` nel JSON per il profilo justETF (TER, accumulazione/distribuzione):
+
+```json
+{"ticker": "VWCE.MI", "shares": 6, "cost_basis": 151.27, "isin": "IE00BK5BQT80"}
+```
+
+---
+
 ## Note / gotcha
 
-- `margin_of_safety` è una **stima grezza** (FCF/10%), non un DCF serio: per i
-  mega-cap tech la lente `value` risulta severa per costruzione. Con `growth` il
-  giudizio cambia parecchio.
+- `margin_of_safety` è un **DCF reale** (FCF unlevered con crescita calante, WACC
+  via CAPM, valore terminale di Gordon): per i mega-cap tech la lente `value`
+  resta severa per costruzione. Con `growth` il giudizio cambia parecchio.
 - Se manca `FMP_API_KEY` **o FMP rifiuta** (402 quota giornaliera, 403 chiave),
   il provider ripiega automaticamente su yfinance: stampa `[warn] FMP non
   disponibile ...` e prosegue. yfinance ora copre conto economico + stato

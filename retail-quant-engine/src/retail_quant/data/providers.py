@@ -94,11 +94,22 @@ def _enrich_from_justetf(profile: EtfProfile, isin: str) -> None:
     ter = _justetf_field(html, "etf-profile-header_ter-value")
     policy = _justetf_field(html, "etf-profile-header_distribution-policy-value")
     index = _justetf_field(html, "tl_etf-basics_value_index-name")
+    replication = _justetf_field(html, "etf-profile-header_replication-value")
+    domicile = _justetf_field(html, "tl_etf-basics_value_domicile-country")
+    holdings = _justetf_field(html, "etf-profile-header_holdings-value")
 
     if name:
         profile.name = name
     if index:
         profile.index_name = index
+    if replication:
+        profile.replication = replication
+    if domicile:
+        profile.domicile = domicile
+    if holdings:
+        digits = re.sub(r"[^\d]", "", holdings)
+        if digits:
+            profile.holdings = int(digits)
     if policy:
         profile.distribution_policy = policy
         # un ETF ad accumulazione non distribuisce: il rendimento da yfinance

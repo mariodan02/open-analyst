@@ -30,10 +30,11 @@ def build_graph(settings: Settings, llm=None):
     return g.compile()
 
 
-def initial_state(ticker: str, lens: str) -> AnalysisState:
+def initial_state(ticker: str, lens: str, isin: str | None = None) -> AnalysisState:
     return {
         "ticker": ticker.upper(),
         "lens": lens,
+        "isin": isin.upper() if isin else None,
         "news": [],
         "warnings": [],
         "errors": [],

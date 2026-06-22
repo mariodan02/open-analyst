@@ -35,6 +35,9 @@ class EtfProfile(BaseModel):
     dividend_yield: float | None = None  # frazione (None se ad accumulazione)
     distribution_policy: str | None = None  # "Accumulating" | "Distributing"
     index_name: str | None = None
+    replication: str | None = None  # "Physical" | "Synthetic"
+    domicile: str | None = None  # rilevante per la tassazione
+    holdings: int | None = None  # numero di titoli sottostanti
     category: str | None = None
     source: str = "yfinance"
 

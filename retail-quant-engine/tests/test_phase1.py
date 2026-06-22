@@ -52,6 +52,26 @@ def test_graph_runs_end_to_end():
     print("metrics:", final.get("metrics"))
 
 
+def test_graph_etf_path():
+    # Un ETF deve seguire il ramo ETF: niente bilanci, profilo justETF nel
+    # contesto della tesi, titolo "ETF" nel report (non "lente: value").
+    settings = Settings.load(require_llm=False)
+    stub = StubLLM()
+    graph = build_graph(settings, llm=stub)
+
+    final = graph.invoke(initial_state("VWCE.MI", "value", isin="IE00BK5BQT80"))
+
+    assert final.get("price") is not None and final["price"].asset_type == "etf"
+    assert final.get("financials") is None, "un ETF non deve avere bilanci"
+    assert final.get("etf_profile") is not None, "profilo ETF non recuperato"
+    human = stub.last_messages[-1].content
+    assert "etf_profile" in human, "il blocco dati ETF non è arrivato alla tesi"
+    assert "— ETF" in final["report"], "il titolo del report non marca l'ETF"
+
+    print("✓ ramo ETF Fase 1 ok (no bilanci, profilo justETF, titolo ETF)")
+
+
 if __name__ == "__main__":
     test_graph_runs_end_to_end()
+    test_graph_etf_path()
     print("\n✅ test_phase1: PASSATO")

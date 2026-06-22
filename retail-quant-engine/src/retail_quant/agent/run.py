@@ -1,12 +1,14 @@
 """CLI Fase 1 — analisi completa di un titolo (usa NVIDIA):
 
     python -m retail_quant.agent.run AAPL
+    python -m retail_quant.agent.run VWCE.MI --isin IE00BK5BQT80   # ETF
 
-Richiede NVIDIA_API_KEY nel .env. La lente è quella in RQE_LENS.
+Richiede NVIDIA_API_KEY nel .env. La lente è quella in RQE_LENS. Per gli ETF
+l'--isin (opzionale) abilita il profilo justETF (TER, politica dividendi).
 """
 from __future__ import annotations
 
-import sys
+import argparse
 from datetime import date
 from pathlib import Path
 
@@ -17,10 +19,10 @@ from .graph import build_graph, initial_state
 REPORTS_DIR = Path(__file__).resolve().parents[3] / "reports"
 
 
-def main(ticker: str) -> None:
+def main(ticker: str, isin: str | None = None) -> None:
     settings = Settings.load()  # qui serve davvero la chiave NVIDIA
     graph = build_graph(settings)
-    final = graph.invoke(initial_state(ticker, settings.lens))
+    final = graph.invoke(initial_state(ticker, settings.lens, isin))
 
     report = final["report"]
     print(report)
@@ -32,7 +34,8 @@ def main(ticker: str) -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Uso: python -m retail_quant.agent.run <TICKER>")
-        raise SystemExit(1)
-    main(sys.argv[1])
+    ap = argparse.ArgumentParser(description="Analisi Fase 1 di un titolo o ETF.")
+    ap.add_argument("ticker")
+    ap.add_argument("--isin", default=None, help="ISIN dell'ETF (abilita justETF)")
+    args = ap.parse_args()
+    main(args.ticker, args.isin)
