@@ -97,8 +97,10 @@ def build_markdown(result: dict) -> str:
         if r.error:
             lines.append(f"| **{r.ticker}** | - | - | - | errore | - | - |")
             continue
+        pl = "—" if r.pl_pct is None else f"{r.pl_pct:+.2f}%"
+        wt = "—" if r.weight_pct is None else f"{r.weight_pct}%"
         lines.append(
             f"| **{r.ticker}** | {r.currency} | {r.cost_value} | {r.market_value} | "
-            f"{r.pl_abs:+.2f} | {r.pl_pct:+.2f}% | {r.weight_pct}% |"
+            f"{r.pl_abs:+.2f} | {pl} | {wt} |"
         )
     return "\n".join(lines)

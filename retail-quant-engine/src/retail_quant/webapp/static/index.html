@@ -179,7 +179,7 @@ function addPhase(){PHASES.push({years:5,monthly:200});renderPhases()}
 function projChart(rows){
   if(rows.length<2)return"";
   const W=640,H=240,pad=34;
-  const max=Math.max(...rows.map(r=>r.value));
+  const max=Math.max(...rows.map(r=>r.value))||1;
   const X=i=>pad+i*(W-2*pad)/(rows.length-1);
   const Y=v=>H-pad-(v/max)*(H-2*pad);
   const valLine=rows.map((r,i)=>`${X(i).toFixed(1)},${Y(r.value).toFixed(1)}`).join(" ");

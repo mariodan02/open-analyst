@@ -57,6 +57,18 @@ def test_fx_unavailable_warns(monkeypatch):
     print("✓ FX non disponibile: avviso + nominale ok")
 
 
+def test_zero_cost_basis_no_crash(monkeypatch):
+    # cost_basis 0 (azioni gratuite/bonus) -> pl_pct None: il report NON deve crashare
+    monkeypatch.setattr(providers, "get_price",
+                        lambda t: PriceSnapshot(ticker=t, price=50.0, currency="EUR"))
+    monkeypatch.setattr(providers, "get_fx_rate", lambda f, b: 1.0)
+    r = returns.analyze([Holding("FREE", shares=10, cost_basis=0.0)], Settings.load(require_llm=False))
+    assert r["rows"][0].pl_pct is None
+    md = returns.build_markdown(r)  # non deve sollevare
+    assert "FREE" in md and "—" in md
+    print("✓ cost_basis 0 non manda in crash il report ok")
+
+
 def test_isolates_broken(monkeypatch):
     def boom(t):
         if t == "BBB":

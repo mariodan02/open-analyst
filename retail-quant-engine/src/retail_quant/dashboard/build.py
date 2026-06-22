@@ -140,10 +140,13 @@ def _holdings_table(rdata: dict, base: str) -> str:
             rows.append(f"<tr><td>{html.escape(r.ticker)}</td><td colspan='5' class='muted'>"
                         f"errore: {html.escape(r.error)}</td></tr>")
             continue
+        pl = "—" if r.pl_pct is None else f"{r.pl_pct:+.2f}%"
+        plcls = "" if r.pl_pct is None else _cls(r.pl_pct)
+        wt = "—" if r.weight_pct is None else f"{r.weight_pct}%"
         rows.append(
             f"<tr><td>{html.escape(r.ticker)}</td><td>{html.escape(r.currency)}</td>"
             f"<td>{r.cost_value:,.2f}</td><td>{r.market_value:,.2f}</td>"
-            f"<td class='{_cls(r.pl_pct)}'>{r.pl_pct:+.2f}%</td><td>{r.weight_pct}%</td></tr>"
+            f"<td class='{plcls}'>{pl}</td><td>{wt}</td></tr>"
         )
     rows.append("</tbody></table></div>")
     return "".join(rows)
