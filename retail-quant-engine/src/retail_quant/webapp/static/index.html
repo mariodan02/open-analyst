@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Retail Quant — Portafoglio</title>
+<style>
+:root{color-scheme:light dark}
+*{box-sizing:border-box}
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#f6f7f9;color:#1c2024}
+header{background:#111827;color:#fff;padding:14px 20px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+header h1{font-size:17px;margin:0;font-weight:700}
+nav{display:flex;gap:6px;flex-wrap:wrap}
+nav button{background:#1f2937;color:#cbd5e1;border:0;padding:8px 14px;border-radius:8px;cursor:pointer;font-size:14px}
+nav button.active{background:#2563eb;color:#fff}
+main{max-width:1000px;margin:0 auto;padding:20px}
+.tab{display:none}.tab.active{display:block}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px;margin-bottom:18px}
+h2{font-size:15px;margin:0 0 12px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid #eef0f2}
+th{color:#6b7280;font-size:12px;text-transform:uppercase}
+td.num,th.num{text-align:right}
+input,button.btn{font:inherit}
+input{padding:6px 8px;border:1px solid #d1d5db;border-radius:7px;width:100%;background:#fff;color:inherit}
+.btn{background:#2563eb;color:#fff;border:0;padding:9px 16px;border-radius:8px;cursor:pointer;font-size:14px}
+.btn.sec{background:#e5e7eb;color:#111827}
+.btn.danger{background:#fee2e2;color:#b91c1c;padding:6px 10px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:12px}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:12px;color:#6b7280}
+.field input{width:140px}
+iframe{width:100%;height:78vh;border:1px solid #e5e7eb;border-radius:12px;background:#fff}
+.muted{color:#6b7280;font-size:13px}
+.pos{color:#15803d;font-weight:600}.neg{color:#b91c1c;font-weight:600}
+pre{white-space:pre-wrap;font-size:13px;background:#0f1115;color:#e5e7eb;padding:14px;border-radius:10px;overflow:auto}
+.toast{position:fixed;bottom:18px;right:18px;background:#111827;color:#fff;padding:10px 16px;border-radius:8px;opacity:0;transition:.2s}
+.toast.show{opacity:1}
+@media(prefers-color-scheme:dark){body{background:#0f1115;color:#e5e7eb}.card{background:#171a21;border-color:#262b35}
+ th,td{border-color:#262b35}th,.muted,.field label{color:#9aa4b2}input{background:#0f1115;border-color:#2b313c}
+ .btn.sec{background:#262b35;color:#e5e7eb}}
+</style>
+</head>
+<body>
+<header>
+  <h1>📊 Retail Quant</h1>
+  <nav>
+    <button data-tab="portfolio" class="active">Portafoglio</button>
+    <button data-tab="positions">Posizioni</button>
+    <button data-tab="tools">Strumenti</button>
+  </nav>
+</header>
+<main>
+  <!-- PORTAFOGLIO -->
+  <section id="portfolio" class="tab active">
+    <div class="row"><button class="btn sec" onclick="reloadDash()">↻ Aggiorna</button>
+      <span class="muted">Riepilogo P/L, equity curve, avvisi ed eventi. I prezzi sono live.</span></div>
+    <iframe id="dash" src="/dashboard.html"></iframe>
+  </section>
+
+  <!-- POSIZIONI -->
+  <section id="positions" class="tab">
+    <div class="card">
+      <h2>Le tue posizioni</h2>
+      <table><thead><tr><th>Ticker</th><th>Quantità</th><th>Prezzo carico</th>
+        <th>ISIN (ETF)</th><th>Target %</th><th></th></tr></thead>
+        <tbody id="holdings"></tbody></table>
+      <div class="row" style="margin-top:12px">
+        <button class="btn sec" onclick="addRow()">+ Aggiungi titolo</button>
+        <button class="btn" onclick="savePortfolio()">💾 Salva</button>
+      </div>
+      <p class="muted">Ticker in formato Yahoo (es. VWCE.MI, AAPL). ISIN e Target % sono opzionali.</p>
+    </div>
+  </section>
+
+  <!-- STRUMENTI -->
+  <section id="tools" class="tab">
+    <div class="card">
+      <h2>Proiezione PAC</h2>
+      <div class="row">
+        <div class="field"><label>€/mese</label><input id="pj_m" type="number" value="200"></div>
+        <div class="field"><label>Anni</label><input id="pj_y" type="number" value="20"></div>
+        <div class="field"><label>Rendimento %/anno</label><input id="pj_r" type="number" value="6"></div>
+        <div class="field"><label>Inflazione %</label><input id="pj_i" type="number" value="2"></div>
+        <div class="field"><label>&nbsp;</label><label class="muted"><input type="checkbox" id="pj_fp" checked style="width:auto"> parti dal portafoglio</label></div>
+        <button class="btn" onclick="runProjection()">Calcola</button>
+      </div>
+      <div id="pj_out"></div>
+    </div>
+
+    <div class="card">
+      <h2>Comps — valutazione relativa</h2>
+      <div class="row">
+        <div class="field" style="flex:1"><label>Ticker (primo = target, separati da virgola)</label>
+          <input id="cmp_t" value="AAPL, MSFT, GOOGL, META" style="width:100%"></div>
+        <button class="btn" onclick="runComps()">Confronta</button>
+      </div>
+      <div id="cmp_out"></div>
+    </div>
+
+    <div class="card">
+      <h2>Analisi di un titolo <span class="muted">(usa l'IA, ~60s, serve la chiave NVIDIA)</span></h2>
+      <div class="row">
+        <div class="field"><label>Ticker</label><input id="an_t" value="AAPL"></div>
+        <div class="field"><label>ISIN (se ETF)</label><input id="an_i" placeholder="opzionale"></div>
+        <button class="btn" onclick="runAnalyze()">Analizza</button>
+      </div>
+      <div id="an_out"></div>
+    </div>
+
+    <div class="card">
+      <h2>Esporta</h2>
+      <button class="btn sec" onclick="runExport()">⬇ Esporta posizioni in CSV</button>
+      <div id="ex_out" class="muted" style="margin-top:8px"></div>
+    </div>
+  </section>
+</main>
+<div id="toast" class="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2200)}
+function fmt(n){return n==null?"—":Number(n).toLocaleString("it-IT",{minimumFractionDigits:2,maximumFractionDigits:2})}
+function cls(v){return (v||0)>=0?"pos":"neg"}
+
+// --- tabs
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active");$("#"+b.dataset.tab).classList.add("active");
+  if(b.dataset.tab==="positions")loadPortfolio();
+});
+function reloadDash(){$("#dash").src="/dashboard.html?"+Date.now()}
+
+// --- posizioni
+let HOLDINGS=[];
+async function loadPortfolio(){
+  const d=await (await fetch("/api/portfolio")).json();
+  HOLDINGS=d.holdings||[];renderHoldings();
+}
+function renderHoldings(){
+  const tb=$("#holdings");tb.innerHTML="";
+  HOLDINGS.forEach((h,i)=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`
+      <td><input value="${h.ticker||""}" onchange="HOLDINGS[${i}].ticker=this.value"></td>
+      <td><input type="number" value="${h.shares??""}" onchange="HOLDINGS[${i}].shares=this.value"></td>
+      <td><input type="number" value="${h.cost_basis??""}" onchange="HOLDINGS[${i}].cost_basis=this.value"></td>
+      <td><input value="${h.isin||""}" onchange="HOLDINGS[${i}].isin=this.value"></td>
+      <td><input type="number" value="${h.target_pct??""}" onchange="HOLDINGS[${i}].target_pct=this.value"></td>
+      <td><button class="btn danger" onclick="HOLDINGS.splice(${i},1);renderHoldings()">✕</button></td>`;
+    tb.appendChild(tr);
+  });
+}
+function addRow(){HOLDINGS.push({ticker:"",shares:0,cost_basis:0});renderHoldings()}
+async function savePortfolio(){
+  const r=await fetch("/api/portfolio",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({holdings:HOLDINGS})});
+  const d=await r.json();
+  if(d.ok){toast("Salvati "+d.saved+" titoli");reloadDash()}else toast("Errore: "+(d.error||"?"));
+}
+
+// --- proiezione
+async function runProjection(){
+  const body={monthly:$("#pj_m").value,years:$("#pj_y").value,annual_return:$("#pj_r").value,
+    inflation:$("#pj_i").value,from_portfolio:$("#pj_fp").checked};
+  const d=await (await fetch("/api/projection",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})).json();
+  if(d.error){$("#pj_out").innerHTML=`<p class="neg">${d.error}</p>`;return}
+  let rows=d.rows.map(r=>`<tr><td>${r.year}</td><td class="num">${fmt(r.value)}</td><td class="num">${fmt(r.contributed)}</td><td class="num">${fmt(r.gains)}</td></tr>`).join("");
+  $("#pj_out").innerHTML=`
+    <p><b>Capitale finale: ${fmt(d.final)} ${d.currency}</b> · versato ${fmt(d.total_contributed)} ·
+       interessi <span class="pos">${fmt(d.gains)}</span>${d.final_real!=null?` · reale ${fmt(d.final_real)} ${d.currency}`:""}</p>
+    <table><thead><tr><th>Anno</th><th class="num">Valore</th><th class="num">Versato</th><th class="num">Interessi</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// --- comps
+async function runComps(){
+  const tickers=$("#cmp_t").value.split(",").map(s=>s.trim()).filter(Boolean);
+  const d=await (await fetch("/api/comps",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({tickers})})).json();
+  if(d.error){$("#cmp_out").innerHTML=`<p class="neg">${d.error}</p>`;return}
+  let rows=d.rows.map(r=>r.error?`<tr><td>${r.ticker}</td><td colspan="4" class="muted">errore</td></tr>`:
+    `<tr><td>${r.ticker}${r.ticker===d.target?" ⟵":""}</td><td class="num">${r.pe??"—"}</td><td class="num">${r.ps??"—"}</td><td class="num">${r.gross_margin_pct??"—"}</td><td class="num">${r.operating_margin_pct??"—"}</td></tr>`).join("");
+  $("#cmp_out").innerHTML=`<p><b>${d.verdict}</b></p>
+    <table><thead><tr><th>Ticker</th><th class="num">P/E</th><th class="num">P/S</th><th class="num">Margine lordo %</th><th class="num">Margine op. %</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// --- analisi
+async function runAnalyze(){
+  $("#an_out").innerHTML='<p class="muted">Analisi in corso… (~60s)</p>';
+  const body={ticker:$("#an_t").value,isin:$("#an_i").value||null};
+  const d=await (await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})).json();
+  $("#an_out").innerHTML=d.error?`<p class="neg">${d.error}</p>`:`<pre>${d.report.replace(/</g,"&lt;")}</pre>`;
+}
+
+// --- export
+async function runExport(){
+  const d=await (await fetch("/api/export",{method:"POST"})).json();
+  $("#ex_out").textContent=d.ok?("CSV salvato: "+d.path):("Errore: "+d.error);
+}
+</script>
+</body>
+</html>

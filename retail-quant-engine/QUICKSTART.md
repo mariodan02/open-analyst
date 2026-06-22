@@ -4,6 +4,18 @@
 cd retail-quant-engine && source .venv/bin/activate
 ```
 
+## 🖥️ GUI (la via più semplice)
+
+```bash
+python -m retail_quant.webapp.run --open      # http://127.0.0.1:5000
+```
+Pagina web locale: scheda **Portafoglio** (dashboard live), **Posizioni** (aggiungi/
+modifica/salva i titoli senza toccare il JSON), **Strumenti** (proiezione PAC, comps,
+analisi IA, export CSV). Solo locale, nessuna autenticazione. (Richiede `flask`:
+`pip install -r requirements.txt`.)
+
+I comandi da terminale qui sotto restano tutti validi.
+
 ## Comandi
 
 ```bash
