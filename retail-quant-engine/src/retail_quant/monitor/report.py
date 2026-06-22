@@ -1,7 +1,28 @@
 """Report di monitoraggio in Markdown (deterministico)."""
 from __future__ import annotations
 
+from ..data.schemas import ETF_LIKE
 from .monitor import MonitorResult
+
+
+def _head(r: MonitorResult) -> str:
+    price = r.snapshot.get("price")
+    if r.snapshot.get("asset_type") in ETF_LIKE:
+        extras = []
+        ter = r.snapshot.get("expense_ratio_pct")
+        if ter is not None:
+            extras.append(f"TER {ter}%")
+        policy = (r.snapshot.get("distribution_policy") or "").lower()
+        dy = r.snapshot.get("dividend_yield_pct")
+        if "accumul" in policy:
+            extras.append("accumulazione")
+        elif dy is not None:
+            extras.append(f"rendimento {dy}%")
+        elif "distrib" in policy:
+            extras.append("distribuzione")
+        tag = "ETF" + (", " + ", ".join(extras) if extras else "")
+        return f"- **{r.ticker}** (prezzo {price}) [{tag}]"
+    return f"- **{r.ticker}** (prezzo {price})"
 
 
 def build_markdown(results: list[MonitorResult], lens: str, first_run: bool) -> str:
@@ -24,8 +45,7 @@ def build_markdown(results: list[MonitorResult], lens: str, first_run: bool) -> 
         if r.error:
             lines.append(f"- **{r.ticker}**: ⚠️ errore — {r.error}")
             continue
-        price = r.snapshot.get("price")
-        head = f"- **{r.ticker}** (prezzo {price})"
+        head = _head(r)
         infos = [a.message for a in r.alerts]
         if infos:
             lines.append(head + ": " + "; ".join(infos))

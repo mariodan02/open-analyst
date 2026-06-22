@@ -7,12 +7,15 @@ tools.py le catturano e le trasformano in un messaggio per il modello).
 """
 from __future__ import annotations
 
+import re
+
 import requests
 
 from ..config import Settings
 from .schemas import (
     BalanceSheet,
     CashFlow,
+    EtfProfile,
     FinancialHistory,
     IncomeStatement,
     NewsItem,
@@ -42,7 +45,85 @@ def get_price(ticker: str) -> PriceSnapshot:
         market_cap=info.get("marketCap"),
         shares_outstanding=info.get("sharesOutstanding"),
         beta=info.get("beta"),
+        asset_type=(info.get("quoteType") or "equity").lower(),
     )
+
+
+def get_etf_profile(ticker: str, isin: str | None = None) -> EtfProfile:
+    """Metriche per ETF/fondi (TER, rendimento, politica dividendi).
+
+    Base da yfinance; se è noto l'ISIN, arricchisce con justETF (TER e politica
+    dividendi affidabili). Lo scraping justETF è best-effort: ogni errore di rete
+    o di parsing degrada senza sollevare, lasciando i campi yfinance.
+    """
+    import yfinance as yf
+
+    info = yf.Ticker(ticker).info
+    profile = EtfProfile(
+        ticker=ticker.upper(),
+        isin=isin,
+        name=info.get("longName") or info.get("shortName"),
+        expense_ratio=info.get("annualReportExpenseRatio") or info.get("netExpenseRatio"),
+        dividend_yield=info.get("yield"),
+        category=info.get("category"),
+    )
+    if isin:
+        try:
+            _enrich_from_justetf(profile, isin)
+        except (requests.RequestException, ValueError) as exc:
+            print(f"[warn] justETF non disponibile per {isin} ({exc}); uso solo yfinance.")
+    return profile
+
+
+# --------------------------------------------------------------------------- #
+# justETF: profilo ETF per ISIN (TER, politica dividendi, indice). Nessuna
+# chiave; pagina pubblica. Le ancore data-testid sono stabili nel frontend.
+# --------------------------------------------------------------------------- #
+JUSTETF_PROFILE = "https://www.justetf.com/en/etf-profile.html"
+_JUSTETF_HEADERS = {"User-Agent": "Mozilla/5.0", "Accept-Language": "en"}
+
+
+def _enrich_from_justetf(profile: EtfProfile, isin: str) -> None:
+    resp = requests.get(
+        JUSTETF_PROFILE, params={"isin": isin}, headers=_JUSTETF_HEADERS, timeout=_HTTP_TIMEOUT
+    )
+    resp.raise_for_status()
+    html = resp.text
+
+    name = _justetf_field(html, "etf-profile-header_etf-name")
+    ter = _justetf_field(html, "etf-profile-header_ter-value")
+    policy = _justetf_field(html, "etf-profile-header_distribution-policy-value")
+    index = _justetf_field(html, "tl_etf-basics_value_index-name")
+
+    if name:
+        profile.name = name
+    if index:
+        profile.index_name = index
+    if policy:
+        profile.distribution_policy = policy
+        # un ETF ad accumulazione non distribuisce: il rendimento da yfinance
+        # (spesso 0/None) non è informativo, azzeralo per non confondere.
+        if "accumul" in policy.lower():
+            profile.dividend_yield = None
+    if ter:
+        pct = _first_number(ter)
+        if pct is not None:
+            profile.expense_ratio = pct / 100  # "0.19% p.a." -> 0.0019
+    profile.source = "justetf+yfinance"
+
+
+def _justetf_field(html: str, testid: str) -> str | None:
+    """Testo subito dopo un data-testid (fino al primo tag). None se assente."""
+    m = re.search(rf'data-testid="{re.escape(testid)}"[^>]*>([^<]*)', html)
+    if not m:
+        return None
+    text = m.group(1).strip()
+    return text or None
+
+
+def _first_number(text: str) -> float | None:
+    m = re.search(r"[-+]?\d+(?:\.\d+)?", text)
+    return float(m.group()) if m else None
 
 
 def get_news(ticker: str, limit: int = 5) -> list[NewsItem]:

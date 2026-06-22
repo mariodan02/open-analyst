@@ -74,8 +74,62 @@ def test_real_monitor_with_change():
     print("✓ monitoraggio reale + rilevamento cambiamento ok")
 
 
+def test_justetf_parser_offline():
+    # Parsing deterministico (niente rete) su HTML rappresentativo: verifica
+    # le ancore data-testid, la conversione del TER e l'azzeramento del
+    # rendimento per gli ETF ad accumulazione.
+    from retail_quant.data.providers import _enrich_from_justetf
+    from retail_quant.data.schemas import EtfProfile
+
+    html = (
+        '<div data-testid="etf-profile-header_etf-name">Vanguard FTSE All-World UCITS ETF</div>'
+        '<div data-testid="etf-profile-header_ter-value">0.19% p.a.</div>'
+        '<div data-testid="etf-profile-header_distribution-policy-value">Accumulating</div>'
+        '<td data-testid="tl_etf-basics_value_index-name">FTSE All-World</td>'
+    )
+
+    import retail_quant.data.providers as P
+
+    class _Resp:
+        text = html
+        def raise_for_status(self): pass
+
+    orig = P.requests.get
+    P.requests.get = lambda *a, **k: _Resp()
+    try:
+        prof = EtfProfile(ticker="VWCE.MI", isin="IE00BK5BQT80", dividend_yield=0.0)
+        _enrich_from_justetf(prof, "IE00BK5BQT80")
+    finally:
+        P.requests.get = orig
+
+    assert prof.expense_ratio == 0.0019, prof.expense_ratio
+    assert prof.distribution_policy == "Accumulating"
+    assert prof.index_name == "FTSE All-World"
+    assert prof.dividend_yield is None  # accumulazione -> nessun rendimento mostrato
+    print("✓ parser justETF offline ok (TER, policy, indice)")
+
+
+def test_real_monitor_etf():
+    # Un ETF non ha bilancio: lo snapshot deve marcarlo come tale e NON
+    # contenere metriche da azione (pe_ratio / margin_of_safety_pct).
+    settings = Settings.load(require_llm=False)
+    holdings = [Holding("VWCE.MI", shares=6, cost_basis=151.27)]
+    results, new_state = monitor(holdings, settings, prev_state={})
+    snap = new_state.get("VWCE.MI", {})
+    assert results[0].error is None, results[0].error
+    assert snap.get("asset_type") == "etf", snap
+    assert "margin_of_safety_pct" not in snap
+    assert "expense_ratio_pct" in snap  # chiave presente anche se valore None
+    # il P/L sulla posizione deve comunque essere calcolato
+    assert any("P/L" in a.message for a in results[0].alerts)
+    print(f"  ETF snapshot: {snap}")
+    print("✓ monitoraggio ETF ok (niente metriche da azione)")
+
+
 if __name__ == "__main__":
     test_alerts_synthetic()
     test_portfolio_load()
     test_real_monitor_with_change()
+    test_justetf_parser_offline()
+    test_real_monitor_etf()
     print("\n✅ test_phase3: PASSATO")
