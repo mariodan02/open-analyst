@@ -30,6 +30,8 @@ def main() -> None:
                    help="invia gli alert sui canali configurati (email/ntfy/telegram)")
     p.add_argument("--notify-force", action="store_true",
                    help="con --notify, invia anche se gli alert non sono cambiati")
+    p.add_argument("--dashboard", action="store_true",
+                   help="rigenera anche la dashboard HTML in reports/dashboard.html")
     args = p.parse_args()
 
     settings = Settings.load(require_llm=False)
@@ -54,6 +56,11 @@ def main() -> None:
     if args.notify:
         from ..notify import notifier
         print("[" + notifier.maybe_notify(results, STATE_DIR, force=args.notify_force) + "]")
+
+    if args.dashboard:
+        from ..dashboard.run import write_dashboard
+        out = write_dashboard(holdings, settings, monitor_results=results)
+        print(f"[dashboard: {out}]")
 
 
 if __name__ == "__main__":

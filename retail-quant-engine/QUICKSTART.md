@@ -23,6 +23,7 @@ python -m retail_quant.monitor.run   --file portfolio.json --notify   # + invia 
 python -m retail_quant.returns.run   --file portfolio.json   # performance: P/L, pesi
 python -m retail_quant.rebalance.run --file portfolio.json --cash 500   # riallinea ai target_pct
 python -m retail_quant.catalyst.run  --file portfolio.json --days 90    # prossimi earnings/dividendi
+python -m retail_quant.dashboard.run --file portfolio.json --open       # dashboard HTML nel browser
 
 # Controlli senza LLM e senza costo
 python -m retail_quant.smoke_test GOOG    # solo dati + metriche

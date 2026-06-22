@@ -27,7 +27,7 @@ Description=retail-quant-engine portfolio monitor
 [Service]
 Type=oneshot
 WorkingDirectory=$PROJECT_DIR
-ExecStart=$VENV_PY -m retail_quant.monitor.run --file "$PORTFOLIO" --notify
+ExecStart=$VENV_PY -m retail_quant.monitor.run --file "$PORTFOLIO" --notify --dashboard
 EOF
 
 cat > "$UNIT_DIR/retail-quant-monitor.timer" <<EOF
