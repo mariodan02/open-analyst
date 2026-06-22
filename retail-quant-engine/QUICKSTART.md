@@ -26,6 +26,9 @@ python -m retail_quant.catalyst.run  --file portfolio.json --days 90    # prossi
 python -m retail_quant.dashboard.run --file portfolio.json --open       # dashboard HTML (con equity curve)
 python -m retail_quant.export.run    --file portfolio.json              # posizioni + P/L in CSV
 
+# Proiezione PAC: X€/mese a Y% per N anni (--file = parti dal valore attuale)
+python -m retail_quant.projection.run --monthly 200 --years 20 --return 6 --inflation 2 --file portfolio.json
+
 # Controlli senza LLM e senza costo
 python -m retail_quant.smoke_test GOOG    # solo dati + metriche
 python -m pytest -q                       # i test
