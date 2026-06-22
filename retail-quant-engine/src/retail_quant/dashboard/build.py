@@ -10,6 +10,7 @@ from datetime import datetime
 from ..catalyst import catalyst
 from ..catalyst.catalyst import _EVENT_LABELS
 from ..config import Settings
+from ..history import history
 from ..monitor.monitor import monitor as run_monitor
 from ..monitor.state import load_state
 from ..returns import returns
@@ -47,9 +48,10 @@ def _cls(v) -> str:
     return "pos" if (v or 0) >= 0 else "neg"
 
 
-def render(holdings, settings: Settings, monitor_results=None) -> str:
+def render(holdings, settings: Settings, monitor_results=None, rdata=None) -> str:
     base = settings.base_currency
-    rdata = returns.analyze(holdings, settings)
+    if rdata is None:
+        rdata = returns.analyze(holdings, settings)
     cats = catalyst.upcoming(holdings, settings, horizon_days=90)
     if monitor_results is None:
         monitor_results, _ = run_monitor(holdings, settings, load_state())
@@ -64,11 +66,51 @@ def render(holdings, settings: Settings, monitor_results=None) -> str:
         f" · valuta base {html.escape(base)}</div>",
     ]
     parts.append(_kpis(rdata, base))
+    parts.append(_equity_curve(history.load(), base))
     parts.append(_holdings_table(rdata, base))
     parts.append(_alerts(warns))
     parts.append(_events(cats))
     parts.append("</body></html>")
     return "".join(parts)
+
+
+def _equity_curve(hist: list[dict], base: str) -> str:
+    out = ["<div class='card'><h2>Andamento patrimonio</h2>"]
+    pts = [(h["date"], h["total_market"]) for h in hist if h.get("total_market") is not None]
+    if len(pts) < 2:
+        out.append("<div class='muted'>Servono almeno 2 giorni di storico — "
+                   "si popola da solo a ogni giro del monitor/dashboard.</div></div>")
+        return "".join(out)
+
+    values = [v for _, v in pts]
+    vmin, vmax = min(values), max(values)
+    span = (vmax - vmin) or 1.0
+    W, H, pad = 900, 200, 24
+    n = len(pts)
+
+    def px(i: int) -> float:
+        return pad + i * (W - 2 * pad) / (n - 1)
+
+    def py(v: float) -> float:
+        return pad + (1 - (v - vmin) / span) * (H - 2 * pad)
+
+    line = " ".join(f"{px(i):.1f},{py(v):.1f}" for i, (_, v) in enumerate(pts))
+    area = f"{px(0):.1f},{H - pad:.1f} " + line + f" {px(n - 1):.1f},{H - pad:.1f}"
+    up = values[-1] >= values[0]
+    color = "#15803d" if up else "#b91c1c"
+    fill = "rgba(21,128,61,.10)" if up else "rgba(185,28,28,.10)"
+    out.append(
+        f"<svg viewBox='0 0 {W} {H}' width='100%' preserveAspectRatio='none' "
+        f"role='img' aria-label='Andamento del patrimonio'>"
+        f"<polygon points='{area}' fill='{fill}' stroke='none'/>"
+        f"<polyline points='{line}' fill='none' stroke='{color}' stroke-width='2.5' "
+        f"stroke-linejoin='round'/></svg>"
+    )
+    out.append(
+        f"<div class='muted'>dal {html.escape(pts[0][0])} al {html.escape(pts[-1][0])} · "
+        f"min {vmin:,.2f} · max {vmax:,.2f} {html.escape(base)}</div></div>"
+    )
+    return "".join(out)
 
 
 def _kpis(rdata: dict, base: str) -> str:

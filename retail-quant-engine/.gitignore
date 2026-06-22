@@ -8,5 +8,6 @@ dist/
 reports/
 state/
 cache/
+history/
 portfolio.json
 universe.txt

@@ -11,16 +11,22 @@ import webbrowser
 from pathlib import Path
 
 from ..config import Settings
+from ..history import history
 from ..monitor.portfolio import load_portfolio
+from ..returns import returns
 from . import build
 
 REPORTS_DIR = Path(__file__).resolve().parents[3] / "reports"
 
 
 def write_dashboard(holdings, settings: Settings, monitor_results=None) -> Path:
+    # calcola i returns una volta sola: serve sia per registrare lo storico
+    # (equity curve) sia per la pagina
+    rdata = returns.analyze(holdings, settings)
+    history.record(rdata)
     REPORTS_DIR.mkdir(exist_ok=True)
     out = REPORTS_DIR / "dashboard.html"
-    out.write_text(build.render(holdings, settings, monitor_results), encoding="utf-8")
+    out.write_text(build.render(holdings, settings, monitor_results, rdata=rdata), encoding="utf-8")
     return out
 
 

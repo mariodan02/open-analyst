@@ -23,7 +23,8 @@ python -m retail_quant.monitor.run   --file portfolio.json --notify   # + invia 
 python -m retail_quant.returns.run   --file portfolio.json   # performance: P/L, pesi
 python -m retail_quant.rebalance.run --file portfolio.json --cash 500   # riallinea ai target_pct
 python -m retail_quant.catalyst.run  --file portfolio.json --days 90    # prossimi earnings/dividendi
-python -m retail_quant.dashboard.run --file portfolio.json --open       # dashboard HTML nel browser
+python -m retail_quant.dashboard.run --file portfolio.json --open       # dashboard HTML (con equity curve)
+python -m retail_quant.export.run    --file portfolio.json              # posizioni + P/L in CSV
 
 # Controlli senza LLM e senza costo
 python -m retail_quant.smoke_test GOOG    # solo dati + metriche
@@ -64,4 +65,6 @@ Campi **tuoi**, opzionali: `target_pct` (peso obiettivo, sommano a 100, per il r
   `RQE_ETF_CACHE_DAYS` giorni (default 7; `0` = sempre fresco). Mai il prezzo.
 - **Scheduler + notifiche**: `deploy/install-timer.sh` (systemd, una volta al
   giorno) + canali nel `.env` (email/ntfy/telegram). Guida: `deploy/README.md`.
+- **Equity curve**: la dashboard logga un punto al giorno in `history/`; la curva
+  compare dal 2º giorno (il timer la alimenta da solo).
 - Mappa del codice e changelog: vedi `CLAUDE.md`.
