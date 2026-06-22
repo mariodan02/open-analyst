@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import os
 import re
+import threading
+import time
 from pathlib import Path
 
 import requests
@@ -30,6 +32,28 @@ from .schemas import (
 FMP_BASE = "https://financialmodelingprep.com/stable"
 _HTTP_TIMEOUT = 30
 
+# Throttle globale: intervallo minimo tra due chiamate di rete, per non farsi
+# rifiutare con HTTP 429 quando si itera su molti ticker (comps/screening).
+# Tarabile con RQE_REQUEST_DELAY (secondi; 0 = nessun ritardo).
+_REQUEST_DELAY = float(os.getenv("RQE_REQUEST_DELAY", "0.34"))
+_RATE_LOCK = threading.Lock()
+_LAST_CALL = [0.0]
+
+
+def _throttle() -> None:
+    if _REQUEST_DELAY <= 0:
+        return
+    with _RATE_LOCK:
+        wait = _REQUEST_DELAY - (time.monotonic() - _LAST_CALL[0])
+        if wait > 0:
+            time.sleep(wait)
+        _LAST_CALL[0] = time.monotonic()
+
+
+# Circuit breaker FMP: dopo un rifiuto per quota/piano (402/403/429) si smette di
+# interrogare FMP per il resto della sessione e si usa solo yfinance.
+_fmp_disabled = False
+
 
 # --------------------------------------------------------------------------- #
 # Prezzo / news: yfinance (gratis, real-time-ish)
@@ -37,6 +61,7 @@ _HTTP_TIMEOUT = 30
 def get_price(ticker: str) -> PriceSnapshot:
     import yfinance as yf
 
+    _throttle()
     info = yf.Ticker(ticker).info
     price = info.get("currentPrice") or info.get("regularMarketPrice")
     if price is None:
@@ -61,6 +86,7 @@ def get_etf_profile(ticker: str, isin: str | None = None) -> EtfProfile:
     """
     import yfinance as yf
 
+    _throttle()
     info = yf.Ticker(ticker).info
     profile = EtfProfile(
         ticker=ticker.upper(),
@@ -98,6 +124,7 @@ _ETF_CACHE = JsonCache(
 def _enrich_from_justetf(profile: EtfProfile, isin: str) -> None:
     data = _ETF_CACHE.get(isin)
     if data is None:
+        _throttle()
         resp = requests.get(
             JUSTETF_PROFILE, params={"isin": isin}, headers=_JUSTETF_HEADERS, timeout=_HTTP_TIMEOUT
         )
@@ -188,6 +215,7 @@ def get_fx_rate(from_cur: str, to_cur: str) -> float:
     if key not in _FX_CACHE:
         import yfinance as yf
 
+        _throttle()
         hist = yf.Ticker(f"{from_cur}{to_cur}=X").history(period="5d")
         if hist is None or hist.empty:
             raise ValueError(f"Tasso di cambio non disponibile: {from_cur}->{to_cur}")
@@ -203,6 +231,7 @@ def get_catalysts(ticker: str) -> dict:
     """
     import yfinance as yf
 
+    _throttle()
     cal = getattr(yf.Ticker(ticker), "calendar", None) or {}
 
     def _first_date(v):
@@ -219,6 +248,7 @@ def get_catalysts(ticker: str) -> dict:
 def get_news(ticker: str, limit: int = 5) -> list[NewsItem]:
     import yfinance as yf
 
+    _throttle()
     raw = getattr(yf.Ticker(ticker), "news", None) or []
     out: list[NewsItem] = []
     for item in raw[:limit]:
@@ -239,6 +269,7 @@ def get_news(ticker: str, limit: int = 5) -> list[NewsItem]:
 # Bilanci storici: FMP se hai la chiave, altrimenti yfinance
 # --------------------------------------------------------------------------- #
 def _fmp_get(path: str, settings: Settings, **params) -> list[dict]:
+    _throttle()
     params["apikey"] = settings.fmp_api_key
     resp = requests.get(f"{FMP_BASE}/{path}", params=params, timeout=_HTTP_TIMEOUT)
     resp.raise_for_status()
@@ -249,15 +280,22 @@ def _fmp_get(path: str, settings: Settings, **params) -> list[dict]:
 
 
 def get_financials(ticker: str, settings: Settings, years: int = 5) -> FinancialHistory:
+    global _fmp_disabled
     ticker = ticker.upper()
-    if settings.fmp_api_key:
+    if settings.fmp_api_key and not _fmp_disabled:
         try:
             return _financials_fmp(ticker, settings, years)
         except (requests.RequestException, RuntimeError) as exc:
-            # FMP può rifiutare la richiesta (402 quota/piano, 403 chiave, rete).
-            # Non è un errore fatale: ripieghiamo su yfinance (conto economico
-            # parziale) così l'analisi prosegue invece di andare in crash.
-            print(f"[warn] FMP non disponibile per {ticker} ({exc}); uso yfinance.")
+            # FMP può rifiutare la richiesta (402 quota/piano, 403 chiave, 429
+            # rate limit, rete). Non è fatale: si ripiega su yfinance.
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            if status in (402, 403, 429):
+                # quota/piano: inutile insistere ticker dopo ticker -> spegni FMP
+                _fmp_disabled = True
+                print(f"[warn] FMP non disponibile (HTTP {status}): disabilitato per "
+                      f"questa sessione, uso yfinance.")
+            else:
+                print(f"[warn] FMP non disponibile per {ticker} ({exc}); uso yfinance.")
     return _financials_yfinance(ticker, years)
 
 
@@ -318,6 +356,7 @@ def _financials_yfinance(ticker: str, years: int) -> FinancialHistory:
     """
     import yfinance as yf
 
+    _throttle()
     t = yf.Ticker(ticker)
     hist = FinancialHistory(ticker=ticker)
 

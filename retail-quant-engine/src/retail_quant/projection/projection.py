@@ -1,10 +1,12 @@
-"""Proiezione di un PAC (Piano di Accumulo): si versa un importo fisso ogni mese
-a interesse composto. Calcolo trasparente con un ciclo mensile.
+"""Proiezione di un PAC (Piano di Accumulo) a interesse composto.
 
-Convenzioni: il rendimento annuo si compone su base mensile con il tasso
-equivalente i = (1+r)^(1/12) - 1 (12 mesi -> esattamente r). Il versamento è a
-fine mese. Tutto NOMINALE; con l'inflazione si mostra anche il valore reale
-(potere d'acquisto di oggi). Nessuna tassa/commissione considerata.
+Supporta versamenti a FASI: es. 200/mese per 5 anni, poi 400/mese per 10 anni.
+Il caso a versamento costante è una sola fase.
+
+Convenzioni: il rendimento annuo si compone su base mensile col tasso
+equivalente i = (1+r)^(1/12) - 1 (12 mesi -> esattamente r). Versamento a fine
+mese. Tutto NOMINALE; con l'inflazione si mostra anche il valore reale. Nessuna
+tassa/commissione considerata.
 """
 from __future__ import annotations
 
@@ -21,7 +23,7 @@ class YearRow:
 
 @dataclass
 class ProjectionResult:
-    monthly: float
+    steps: list[tuple[int, float]]  # [(anni, versamento_mensile), ...]
     annual_return_pct: float
     years: int
     initial: float
@@ -33,40 +35,54 @@ class ProjectionResult:
     rows: list[YearRow] = field(default_factory=list)
 
 
-def project(monthly: float, annual_return_pct: float, years: int,
-            initial: float = 0.0, inflation_pct: float = 0.0) -> ProjectionResult:
-    if years <= 0 or monthly < 0:
-        raise ValueError("years deve essere > 0 e monthly >= 0")
+def project_steps(steps, annual_return_pct: float,
+                  initial: float = 0.0, inflation_pct: float = 0.0) -> ProjectionResult:
+    steps = [(int(y), float(m)) for y, m in steps]
+    if not steps or any(y <= 0 or m < 0 for y, m in steps):
+        raise ValueError("ogni fase deve avere anni > 0 e versamento >= 0")
 
     i = (1 + annual_return_pct / 100) ** (1 / 12) - 1
     value = initial
+    contributed = initial
     rows: list[YearRow] = []
-    months = years * 12
-    for m in range(1, months + 1):
-        value = value * (1 + i) + monthly
-        if m % 12 == 0:
-            contributed = initial + monthly * m
-            rows.append(YearRow(m // 12, round(value, 2),
-                                round(contributed, 2), round(value - contributed, 2)))
+    month = 0
+    for seg_years, monthly in steps:
+        for _ in range(seg_years * 12):
+            value = value * (1 + i) + monthly
+            contributed += monthly
+            month += 1
+            if month % 12 == 0:
+                rows.append(YearRow(month // 12, round(value, 2),
+                                    round(contributed, 2), round(value - contributed, 2)))
 
-    total_contributed = initial + monthly * months
+    years = sum(y for y, _ in steps)
     final = round(value, 2)
     res = ProjectionResult(
-        monthly=monthly, annual_return_pct=annual_return_pct, years=years, initial=initial,
-        final=final, total_contributed=round(total_contributed, 2),
-        gains=round(final - total_contributed, 2),
-        inflation_pct=inflation_pct, rows=rows,
+        steps=steps, annual_return_pct=annual_return_pct, years=years, initial=initial,
+        final=final, total_contributed=round(contributed, 2),
+        gains=round(final - contributed, 2), inflation_pct=inflation_pct, rows=rows,
     )
     if inflation_pct:
         res.final_real = round(final / (1 + inflation_pct / 100) ** years, 2)
     return res
 
 
+def project(monthly: float, annual_return_pct: float, years: int,
+            initial: float = 0.0, inflation_pct: float = 0.0) -> ProjectionResult:
+    """Caso a versamento costante: una sola fase."""
+    return project_steps([(years, monthly)], annual_return_pct, initial, inflation_pct)
+
+
+def _schedule_text(steps: list[tuple[int, float]], currency: str) -> str:
+    return " poi ".join(f"{m:g} {currency}/mese per {y} anni" for y, m in steps)
+
+
 def build_markdown(r: ProjectionResult, currency: str = "EUR") -> str:
     lines = [
         "# Proiezione PAC", "",
-        f"**Ipotesi:** {r.monthly:g} {currency}/mese · rendimento {r.annual_return_pct:g}%/anno · "
-        f"{r.years} anni" + (f" · capitale iniziale {r.initial:g} {currency}" if r.initial else ""),
+        f"**Ipotesi:** {_schedule_text(r.steps, currency)} · rendimento "
+        f"{r.annual_return_pct:g}%/anno · {r.years} anni totali"
+        + (f" · capitale iniziale {r.initial:g} {currency}" if r.initial else ""),
         "",
         f"- **Capitale finale:** {r.final:,.2f} {currency}",
         f"- Totale versato: {r.total_contributed:,.2f} {currency}",

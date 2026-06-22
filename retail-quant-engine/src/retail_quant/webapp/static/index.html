@@ -77,9 +77,11 @@ pre{white-space:pre-wrap;font-size:13px;background:#0f1115;color:#e5e7eb;padding
   <section id="tools" class="tab">
     <div class="card">
       <h2>Proiezione PAC</h2>
-      <div class="row">
-        <div class="field"><label>€/mese</label><input id="pj_m" type="number" value="200"></div>
-        <div class="field"><label>Anni</label><input id="pj_y" type="number" value="20"></div>
+      <p class="muted">Versamento a fasi: es. 200/mese per 5 anni, poi 400/mese per 10 anni.</p>
+      <table style="max-width:420px"><thead><tr><th>Anni</th><th>€/mese</th><th></th></tr></thead>
+        <tbody id="pj_phases"></tbody></table>
+      <div class="row" style="margin-top:10px">
+        <button class="btn sec" onclick="addPhase()">+ Fase</button>
         <div class="field"><label>Rendimento %/anno</label><input id="pj_r" type="number" value="6"></div>
         <div class="field"><label>Inflazione %</label><input id="pj_i" type="number" value="2"></div>
         <div class="field"><label>&nbsp;</label><label class="muted"><input type="checkbox" id="pj_fp" checked style="width:auto"> parti dal portafoglio</label></div>
@@ -160,18 +162,55 @@ async function savePortfolio(){
   if(d.ok){toast("Salvati "+d.saved+" titoli");reloadDash()}else toast("Errore: "+(d.error||"?"));
 }
 
-// --- proiezione
+// --- proiezione (a fasi + grafico)
+let PHASES=[{years:5,monthly:200},{years:10,monthly:400}];
+function renderPhases(){
+  const tb=$("#pj_phases");tb.innerHTML="";
+  PHASES.forEach((p,i)=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td><input type="number" value="${p.years}" style="width:90px" onchange="PHASES[${i}].years=this.value"></td>
+      <td><input type="number" value="${p.monthly}" style="width:110px" onchange="PHASES[${i}].monthly=this.value"></td>
+      <td><button class="btn danger" onclick="PHASES.splice(${i},1);renderPhases()">✕</button></td>`;
+    tb.appendChild(tr);
+  });
+}
+function addPhase(){PHASES.push({years:5,monthly:200});renderPhases()}
+
+function projChart(rows){
+  if(rows.length<2)return"";
+  const W=640,H=240,pad=34;
+  const max=Math.max(...rows.map(r=>r.value));
+  const X=i=>pad+i*(W-2*pad)/(rows.length-1);
+  const Y=v=>H-pad-(v/max)*(H-2*pad);
+  const valLine=rows.map((r,i)=>`${X(i).toFixed(1)},${Y(r.value).toFixed(1)}`).join(" ");
+  const conLine=rows.map((r,i)=>`${X(i).toFixed(1)},${Y(r.contributed).toFixed(1)}`).join(" ");
+  // area interessi = tra la linea valore e la linea versato
+  const area=rows.map((r,i)=>`${X(i).toFixed(1)},${Y(r.value).toFixed(1)}`).join(" ")+" "+
+    rows.map((r,i)=>`${X(rows.length-1-i).toFixed(1)},${Y(rows[rows.length-1-i].contributed).toFixed(1)}`).join(" ");
+  const ylab=v=>`<text x="4" y="${Y(v)+4}" font-size="11" fill="#9aa4b2">${Math.round(v/1000)}k</text>`;
+  const xlab=(i)=>`<text x="${X(i)}" y="${H-10}" font-size="11" fill="#9aa4b2" text-anchor="middle">${rows[i].year}a</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:640px">
+    <polygon points="${area}" fill="rgba(21,128,61,.13)" stroke="none"/>
+    <polyline points="${conLine}" fill="none" stroke="#9aa4b2" stroke-width="1.6" stroke-dasharray="5 4"/>
+    <polyline points="${valLine}" fill="none" stroke="#15803d" stroke-width="2.5"/>
+    ${ylab(max)}${ylab(max/2)}${xlab(0)}${xlab(Math.floor((rows.length-1)/2))}${xlab(rows.length-1)}
+    </svg>
+    <div class="muted">— valore · - - versato · area = interessi</div>`;
+}
+
 async function runProjection(){
-  const body={monthly:$("#pj_m").value,years:$("#pj_y").value,annual_return:$("#pj_r").value,
-    inflation:$("#pj_i").value,from_portfolio:$("#pj_fp").checked};
+  const steps=PHASES.map(p=>[Number(p.years),Number(p.monthly)]);
+  const body={steps,annual_return:$("#pj_r").value,inflation:$("#pj_i").value,from_portfolio:$("#pj_fp").checked};
   const d=await (await fetch("/api/projection",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})).json();
   if(d.error){$("#pj_out").innerHTML=`<p class="neg">${d.error}</p>`;return}
   let rows=d.rows.map(r=>`<tr><td>${r.year}</td><td class="num">${fmt(r.value)}</td><td class="num">${fmt(r.contributed)}</td><td class="num">${fmt(r.gains)}</td></tr>`).join("");
   $("#pj_out").innerHTML=`
-    <p><b>Capitale finale: ${fmt(d.final)} ${d.currency}</b> · versato ${fmt(d.total_contributed)} ·
+    <p style="margin-top:14px"><b>Capitale finale: ${fmt(d.final)} ${d.currency}</b> · versato ${fmt(d.total_contributed)} ·
        interessi <span class="pos">${fmt(d.gains)}</span>${d.final_real!=null?` · reale ${fmt(d.final_real)} ${d.currency}`:""}</p>
-    <table><thead><tr><th>Anno</th><th class="num">Valore</th><th class="num">Versato</th><th class="num">Interessi</th></tr></thead><tbody>${rows}</tbody></table>`;
+    ${projChart(d.rows)}
+    <table style="margin-top:12px"><thead><tr><th>Anno</th><th class="num">Valore</th><th class="num">Versato</th><th class="num">Interessi</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
+renderPhases();
 
 // --- comps
 async function runComps(){

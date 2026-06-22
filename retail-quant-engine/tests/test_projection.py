@@ -35,6 +35,18 @@ def test_real_value_with_inflation():
     print("✓ valore reale con inflazione ok")
 
 
+def test_stepped_contributions():
+    # 200/mese per 5 anni, poi 400/mese per 10 anni (15 anni totali)
+    r = projection.project_steps([(5, 200), (10, 400)], annual_return_pct=6)
+    assert r.years == 15 and len(r.rows) == 15
+    assert r.total_contributed == 200 * 60 + 400 * 120  # versato a fasi
+    assert r.final > r.total_contributed
+    # equivale a una fase unica con lo stesso schema solo se i versamenti coincidono:
+    flat = projection.project(monthly=200, annual_return_pct=6, years=15)
+    assert r.final > flat.final  # versando di più nella 2ª fase si arriva più in alto
+    print("✓ versamenti a fasi ok")
+
+
 def test_guards():
     for bad in (dict(monthly=100, annual_return_pct=5, years=0),
                 dict(monthly=-1, annual_return_pct=5, years=5)):

@@ -40,6 +40,8 @@ python -m retail_quant.export.run    --file portfolio.json              # posizi
 
 # Proiezione PAC: X€/mese a Y% per N anni (--file = parti dal valore attuale)
 python -m retail_quant.projection.run --monthly 200 --years 20 --return 6 --inflation 2 --file portfolio.json
+# ...a fasi: 200/mese per 5 anni, poi 400/mese per 10 anni
+python -m retail_quant.projection.run --phase 5:200 --phase 10:400 --return 6 --inflation 2
 
 # Controlli senza LLM e senza costo
 python -m retail_quant.smoke_test GOOG    # solo dati + metriche
@@ -78,6 +80,9 @@ Campi **tuoi**, opzionali: `target_pct` (peso obiettivo, sommano a 100, per il r
   sono sempre live**.
 - **Cache ETF**: i metadati justETF (TER, accumulazione…) sono in `cache/` per
   `RQE_ETF_CACHE_DAYS` giorni (default 7; `0` = sempre fresco). Mai il prezzo.
+- **Rate limit (429)**: throttle globale tra le chiamate di rete
+  (`RQE_REQUEST_DELAY`, default 0.34s; `0` = nessuno) + circuit breaker FMP (al
+  primo 402/403/429 si passa a yfinance per la sessione).
 - **Scheduler + notifiche**: `deploy/install-timer.sh` (systemd, una volta al
   giorno) + canali nel `.env` (email/ntfy/telegram). Guida: `deploy/README.md`.
 - **Equity curve**: la dashboard logga un punto al giorno in `history/`; la curva

@@ -83,10 +83,17 @@ def create_app() -> Flask:
             holdings = _load_holdings()
             if holdings:
                 initial = returns.analyze(holdings, settings)["total_market"]
+        # fasi: [[anni, mensile], ...]; in alternativa monthly+years (fase unica)
+        if p.get("steps"):
+            steps = [(int(y), float(m)) for y, m in p["steps"]]
+        elif p.get("monthly") is not None and p.get("years") is not None:
+            steps = [(int(p["years"]), float(p["monthly"]))]
+        else:
+            return jsonify(error="indica 'steps' oppure 'monthly' e 'years'"), 400
         try:
-            res = projection.project(
-                monthly=float(p["monthly"]), annual_return_pct=float(p["annual_return"]),
-                years=int(p["years"]), initial=initial, inflation_pct=float(p.get("inflation") or 0),
+            res = projection.project_steps(
+                steps, annual_return_pct=float(p["annual_return"]),
+                initial=initial, inflation_pct=float(p.get("inflation") or 0),
             )
         except (ValueError, KeyError) as exc:
             return jsonify(error=str(exc)), 400
