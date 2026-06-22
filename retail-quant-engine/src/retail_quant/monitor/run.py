@@ -16,7 +16,7 @@ from ..config import Settings
 from .monitor import monitor
 from .portfolio import load_portfolio
 from .report import build_markdown
-from .state import STATE_FILE, load_state, save_state
+from .state import STATE_DIR, STATE_FILE, load_state, save_state
 
 REPORTS_DIR = Path(__file__).resolve().parents[3] / "reports"
 DEFAULT_PORTFOLIO = Path(__file__).resolve().parents[3] / "portfolio.example.json"
@@ -26,6 +26,10 @@ def main() -> None:
     p = argparse.ArgumentParser(description="Monitoraggio portafoglio (Fase 3)")
     p.add_argument("--file", default=str(DEFAULT_PORTFOLIO), help="file portafoglio JSON")
     p.add_argument("--no-save", action="store_true", help="non aggiornare lo stato")
+    p.add_argument("--notify", action="store_true",
+                   help="invia gli alert sui canali configurati (email/ntfy/telegram)")
+    p.add_argument("--notify-force", action="store_true",
+                   help="con --notify, invia anche se gli alert non sono cambiati")
     args = p.parse_args()
 
     settings = Settings.load(require_llm=False)
@@ -46,6 +50,10 @@ def main() -> None:
     out = REPORTS_DIR / f"monitor-{date.today().isoformat()}.md"
     out.write_text(md, encoding="utf-8")
     print(f"[report salvato: {out}]")
+
+    if args.notify:
+        from ..notify import notifier
+        print("[" + notifier.maybe_notify(results, STATE_DIR, force=args.notify_force) + "]")
 
 
 if __name__ == "__main__":

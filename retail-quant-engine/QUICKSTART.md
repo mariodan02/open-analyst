@@ -19,6 +19,7 @@ python -m retail_quant.comps.run AAPL MSFT GOOGL META
 
 # Portafoglio (file portfolio.json — vedi sotto)
 python -m retail_quant.monitor.run   --file portfolio.json   # guardia: P/L, alert sui cambiamenti
+python -m retail_quant.monitor.run   --file portfolio.json --notify   # + invia gli alert (email/ntfy/telegram)
 python -m retail_quant.returns.run   --file portfolio.json   # performance: P/L, pesi
 python -m retail_quant.rebalance.run --file portfolio.json --cash 500   # riallinea ai target_pct
 python -m retail_quant.catalyst.run  --file portfolio.json --days 90    # prossimi earnings/dividendi
@@ -60,4 +61,6 @@ Campi **tuoi**, opzionali: `target_pct` (peso obiettivo, sommano a 100, per il r
   sono sempre live**.
 - **Cache ETF**: i metadati justETF (TER, accumulazione…) sono in `cache/` per
   `RQE_ETF_CACHE_DAYS` giorni (default 7; `0` = sempre fresco). Mai il prezzo.
+- **Scheduler + notifiche**: `deploy/install-timer.sh` (systemd, una volta al
+  giorno) + canali nel `.env` (email/ntfy/telegram). Guida: `deploy/README.md`.
 - Mappa del codice e changelog: vedi `CLAUDE.md`.
